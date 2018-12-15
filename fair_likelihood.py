@@ -1,0 +1,116 @@
+import numpy as np
+import torch
+
+from gpytorch import settings
+from gpytorch.likelihoods import BernoulliLikelihood
+from gpytorch.functions import log_normal_cdf
+
+
+class FairLikelihood(BernoulliLikelihood):
+    def __init__(self):
+        super().__init__()
+
+    def variational_log_probability(self, latent_func, target):
+        num_samples = settings.num_likelihood_samples.value()
+        samples = latent_func.rsample(torch.Size([num_samples])).view(-1)
+        target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
+        return log_normal_cdf(samples.mul(target)).sum().div(num_samples)
+
+
+def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
+    """Return label posterior from positive likelihood P(y'=1|y,s) and positive prior P(y=1|s)
+    Args:
+        positive_value: P(y'=1|y,s), shape (y, s)
+        label_prior: P(y|s)
+    Returns:
+        Label posterior, shape (y, s, y')
+    """
+    # compute the prior
+    # P(y=0|s)
+    negative_prior = 1 - positive_prior
+    # P(y|s) shape: (y, s, 1)
+    label_prior = np.stack([negative_prior, positive_prior], axis=0)[..., np.newaxis]
+
+    # compute the likelihood
+    # P(y'|y,s) shape: (y, s, y')
+    label_likelihood = np.stack([1 - positive_value, positive_value], axis=-1)
+
+    # compute joint and evidence
+    # P(y',y|s) shape: (y, s, y')
+    joint = label_likelihood * label_prior
+    # P(y'|s) shape: (s, y')
+    if label_evidence is None:
+        label_evidence = np.sum(joint, axis=0)
+
+    # compute posterior
+    # P(y|y',s) shape: (y, s, y')
+    label_posterior = joint / label_evidence
+    return torch.from_numpy(label_posterior.astype(np.float32))
+
+
+def debiasing_params_target_rate(args):
+    """Debiasing parameters for implementing target acceptance rates
+    Args:
+        args: dictionary with parameters
+    Returns:
+        P(y|y',s) with shape (y, s, y')
+    """
+    if args['probs_from_flipped']:
+        biased_acceptance1 = 0.5 * (1 - args['reject_flip_probability'])
+        biased_acceptance2 = 0.5 * (1 + args['accept_flip_probability'])
+    else:
+        biased_acceptance1 = args['biased_acceptance1']
+        biased_acceptance2 = args['biased_acceptance2']
+    # P(y'=1|s)
+    target_acceptance = np.array([args['target_rate1'], args['target_rate2']])
+    # P(y=1|s)
+    positive_prior = np.array([biased_acceptance1, biased_acceptance2])
+    # P(y'=1|y,s) shape: (y, s)
+    positive_value = positive_label_likelihood(args, positive_prior, target_acceptance)
+    # P(y'|s) shape: (s, y')
+    label_evidence = np.stack([1 - target_acceptance, target_acceptance], axis=-1)
+    return compute_label_posterior(positive_value, positive_prior, label_evidence)
+
+
+def positive_label_likelihood(args, biased_acceptance, target_acceptance):
+    """Compute the label likelihood (for positive labels)
+    Args:
+        biased_acceptance: P(y=1|s)
+        target_acceptance: P(y'=1|s)
+    Returns:
+        P(y'=1|y,s) with shape (y, s)
+    """
+    positive_lik = []
+    for i, (target, biased) in enumerate(zip(target_acceptance, biased_acceptance)):
+        if target > biased:
+            # P(y'=1|y=1)
+            p_ybary1 = args[f"p_ybary0_or_ybary1_s{i}"]
+            # P(y'=1|y=0) = (P(y'=1) - P(y'=1|y=1)P(y=1))/P(y=0)
+            p_ybar1_y0 = (target - p_ybary1 * biased) / (1 - biased)
+        else:
+            p_ybar1_y0 = 1 - args[f"p_ybary0_or_ybary1_s{i}"]
+            # P(y'=1|y=0) = (P(y'=1) - P(y'=1|y=0)P(y=0))/P(y=1)
+            p_ybary1 = (target - p_ybar1_y0 * (1 - biased)) / biased
+        positive_lik.append([p_ybar1_y0, p_ybary1])
+    positive_lik_arr = np.array(positive_lik)  # shape: (s, y)
+    return np.transpose(positive_lik_arr)  # shape: (y, s)
+
+
+def debiasing_params_target_tpr(args):
+    """Debiasing parameters for targeting TPRs and TNRs
+    Args:
+        args: dictionary with parameters
+    Returns:
+        P(y|y',s) with shape (y, s, y')
+    """
+    # P(y=1|s)
+    positive_prior = np.array([args['biased_acceptance1'], args['biased_acceptance2']])
+    # P(y'=1|y=1,s)
+    positive_predictive_value = np.array([args['p_ybary1_s0'], args['p_ybary1_s1']])
+    # P(y'=0|y=0,s)
+    negative_predictive_value = np.array([args['p_ybary0_s0'], args['p_ybary0_s1']])
+    # P(y'=1|y=0,s)
+    false_omission_rate = 1 - negative_predictive_value
+    # P(y'=1|y,s) shape: (y, s)
+    positive_value = np.stack([false_omission_rate, positive_predictive_value], axis=0)
+    return compute_label_posterior(positive_value, positive_prior)
