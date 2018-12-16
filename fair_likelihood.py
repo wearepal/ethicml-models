@@ -6,15 +6,44 @@ from gpytorch.likelihoods import BernoulliLikelihood
 from gpytorch.functions import log_normal_cdf
 
 
-class FairLikelihood(BernoulliLikelihood):
-    def __init__(self):
+class TunePrLikelihood(BernoulliLikelihood):
+    def __init__(self, args):
         super().__init__()
+        self.args = args
 
     def variational_log_probability(self, latent_func, target):
+        """
+        `target` is expected to be two-dimensional: y and s
+        y is either -1 or 1
+        """
+        # get samples
         num_samples = settings.num_likelihood_samples.value()
-        samples = latent_func.rsample(torch.Size([num_samples])).view(-1)
-        target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
-        return log_normal_cdf(samples.mul(target)).sum().div(num_samples)
+        latent_samples = latent_func.rsample(torch.Size([num_samples])).view(-1)
+        # get labels and sensitive attribute
+        labels, sens_attr = torch.unbind(target, dim=-1)
+        labels = labels.unsqueeze(0).repeat(num_samples, 1).view(-1)
+        if self.training:
+            sens_attr = sens_attr.to(torch.int64)
+            # convert labels to binary values (0 and 1)
+            labels_bin = (0.5 * (labels + 1)).to(torch.int64)
+            log_lik_neg = log_normal_cdf(-latent_samples)
+            log_lik_pos = log_normal_cdf(latent_samples)
+            # TODO: should we take the mean over the samples at this point?
+            log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
+            debias = self._debiasing_parameters()
+            # `debias` has the shape (y, s, y'). we stack output and sensitive to (batch_size, 2)
+            # then we use the last 2 values of that as indices for `debias`
+            # shape of debias_per_example: (batch_size, output_dim, 2)
+            # TODO: if `debias` has shape (y*s, y'), compute the correct index here
+            debias_per_example = tft.gather_nd(debias, torch.stack((labels_bin, sens_attr), dim=-1))
+            weighted_lik = debias_per_example * torch.exp(log_lik)
+            log_cond_prob = torch.log(torch.sum(weighted_lik, dim=-1))
+        else:
+            log_cond_prob = log_normal_cdf(latent_samples.mul(labels))
+        return log_cond_prob.sum().div(num_samples)
+
+    def _debiasing_parameters(self):
+        return debiasing_params_target_rate(self.args)
 
 
 def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
@@ -45,6 +74,7 @@ def compute_label_posterior(positive_value, positive_prior, label_evidence=None)
     # compute posterior
     # P(y|y',s) shape: (y, s, y')
     label_posterior = joint / label_evidence
+    # TODO: reshape to (y * s, y') so that we can use gather on the first dimension
     return torch.from_numpy(label_posterior.astype(np.float32))
 
 
@@ -55,14 +85,14 @@ def debiasing_params_target_rate(args):
     Returns:
         P(y|y',s) with shape (y, s, y')
     """
-    if args['probs_from_flipped']:
-        biased_acceptance1 = 0.5 * (1 - args['reject_flip_probability'])
-        biased_acceptance2 = 0.5 * (1 + args['accept_flip_probability'])
+    if args.probs_from_flipped:
+        biased_acceptance1 = 0.5 * (1 - args.reject_flip_probability)
+        biased_acceptance2 = 0.5 * (1 + args.accept_flip_probability)
     else:
-        biased_acceptance1 = args['biased_acceptance1']
-        biased_acceptance2 = args['biased_acceptance2']
+        biased_acceptance1 = args.biased_acceptance1
+        biased_acceptance2 = args.biased_acceptance2
     # P(y'=1|s)
-    target_acceptance = np.array([args['target_rate1'], args['target_rate2']])
+    target_acceptance = np.array([args.target_rate1, args.target_rate2])
     # P(y=1|s)
     positive_prior = np.array([biased_acceptance1, biased_acceptance2])
     # P(y'=1|y,s) shape: (y, s)
