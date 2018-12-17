@@ -7,6 +7,9 @@ from gpytorch.models import AbstractVariationalGP
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
 from gpytorch.mlls.variational_elbo import VariationalELBO
 
+from fair_likelihood import TunePrLikelihood
+from flags import parse_arguments
+
 
 class GPClassificationModel(AbstractVariationalGP):
     def __init__(self, train_x):
@@ -23,33 +26,34 @@ class GPClassificationModel(AbstractVariationalGP):
         return latent_pred
 
 
-def main():
+def main(args):
     train_x = torch.linspace(0, 1, 10)
     train_y = torch.sign(torch.cos(train_x * (4 * np.pi)))
+    train_s = torch.sign(torch.linspace(-1, 1, 10))
+    train_labels = torch.stack((train_y, train_s), dim=-1)
     # Initialize model and likelihood
     model = GPClassificationModel(train_x)
-    likelihood = gpytorch.likelihoods.BernoulliLikelihood()
+    likelihood = TunePrLikelihood(args)
     # Find optimal model hyperparameters
     model.train()
     likelihood.train()
 
     # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # "Loss" for GPs - the marginal log likelihood
     # num_data refers to the amount of training data
     mll = VariationalELBO(likelihood, model, train_y.numel())
 
-    training_iter = 50
-    for i in range(training_iter):
+    for i in range(args.train_steps):
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
         # Get predictive output
         output = model(train_x)
         # Calc loss and backprop gradients
-        loss = -mll(output, train_y)
+        loss = -mll(output, train_labels)
         loss.backward()
-        print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
+        print('Iter %d/%d - Loss: %.3f' % (i + 1, args.train_steps, loss.item()))
         optimizer.step()
 
     # Go into eval mode
@@ -77,4 +81,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_arguments())

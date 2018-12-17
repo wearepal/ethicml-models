@@ -28,16 +28,14 @@ class TunePrLikelihood(BernoulliLikelihood):
             labels_bin = (0.5 * (labels + 1)).to(torch.int64)
             log_lik_neg = log_normal_cdf(-latent_samples)
             log_lik_pos = log_normal_cdf(latent_samples)
-            # TODO: should we take the mean over the samples at this point?
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
             debias = self._debiasing_parameters()
-            # `debias` has the shape (y, s, y'). we stack output and sensitive to (batch_size, 2)
-            # then we use the last 2 values of that as indices for `debias`
-            # shape of debias_per_example: (batch_size, output_dim, 2)
-            # TODO: if `debias` has shape (y*s, y'), compute the correct index here
-            debias_per_example = tft.gather_nd(debias, torch.stack((labels_bin, sens_attr), dim=-1))
+            # `debias` has the shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
+            # then we use this as index for `debias`
+            # shape of debias_per_example: (batch_size, 2)
+            debias_per_example = torch.index_select(debias, dim=0, index=labels_bin * 2 + sens_attr)
             weighted_lik = debias_per_example * torch.exp(log_lik)
-            log_cond_prob = torch.log(torch.sum(weighted_lik, dim=-1))
+            log_cond_prob = torch.log(weighted_lik.sum(dim=-1))
         else:
             log_cond_prob = log_normal_cdf(latent_samples.mul(labels))
         return log_cond_prob.sum().div(num_samples)
@@ -74,7 +72,8 @@ def compute_label_posterior(positive_value, positive_prior, label_evidence=None)
     # compute posterior
     # P(y|y',s) shape: (y, s, y')
     label_posterior = joint / label_evidence
-    # TODO: reshape to (y * s, y') so that we can use gather on the first dimension
+    # reshape to (y * s, y') so that we can use gather on the first dimension
+    label_posterior = np.reshape(label_posterior, (4, 2))
     return torch.from_numpy(label_posterior.astype(np.float32))
 
 
@@ -111,14 +110,14 @@ def positive_label_likelihood(args, biased_acceptance, target_acceptance):
         P(y'=1|y,s) with shape (y, s)
     """
     positive_lik = []
-    for i, (target, biased) in enumerate(zip(target_acceptance, biased_acceptance)):
+    for s, (target, biased) in enumerate(zip(target_acceptance, biased_acceptance)):
+        # P(y'=1|y=1)
+        p_ybary1 = args.p_ybary0_or_ybary1_s0 if s == 0 else args.p_ybary0_or_ybary1_s1
         if target > biased:
-            # P(y'=1|y=1)
-            p_ybary1 = args[f"p_ybary0_or_ybary1_s{i}"]
             # P(y'=1|y=0) = (P(y'=1) - P(y'=1|y=1)P(y=1))/P(y=0)
             p_ybar1_y0 = (target - p_ybary1 * biased) / (1 - biased)
         else:
-            p_ybar1_y0 = 1 - args[f"p_ybary0_or_ybary1_s{i}"]
+            p_ybar1_y0 = 1 - p_ybary1
             # P(y'=1|y=0) = (P(y'=1) - P(y'=1|y=0)P(y=0))/P(y=1)
             p_ybary1 = (target - p_ybar1_y0 * (1 - biased)) / biased
         positive_lik.append([p_ybar1_y0, p_ybary1])
