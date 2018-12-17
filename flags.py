@@ -5,7 +5,7 @@ import random
 def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--inf', default='Variational', help='Inference method')
-    parser.add_argument('--cov', default='SquaredExponential', help='Covariance function')
+    parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
     parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
     parser.add_argument('--loo_steps', default=0, type=int,
                         help='Number of steps for optimizing LOO loss; 0 disables')
@@ -15,7 +15,7 @@ def parse_arguments(raw_args=None):
                         help='Suggested total number of examples (datasets don\'t have to use it)')
     parser.add_argument('--num_train', default=50, type=int,
                         help='Suggested number of train examples (datasets don\'t have to use it)')
-    parser.add_argument('--num_inducing', default=50, type=int,
+    parser.add_argument('--num_inducing', default=10, type=int,
                         help='Suggested number of inducing inputs (datasets don\'t have to use it)')
     parser.add_argument('--optimizer', default='RMSPropOptimizer', help='Optimizer to use for SGD')
     parser.add_argument('--model_name', default='local',
@@ -44,6 +44,18 @@ def parse_arguments(raw_args=None):
                         help='For learning rate drop multiply by this factor')
     parser.add_argument('--manual_seed', type=int,
                         help='manual seed, if not given resorts to random seed.')
+
+    # Variational inference
+    parser.add_argument('--num_components', default=1, type=int,
+                        help='Number of mixture of Gaussians components')
+    parser.add_argument('--num_samples', default=100, type=int,
+                        help='Number of samples for mean and variance estimate of likelihood')
+    parser.add_argument('--diag_post', default=False, type=str2bool,
+                        help='Whether the posterior is diagonal or not')
+    parser.add_argument('--optimize_inducing', default=True, type=str2bool,
+                        help='Whether to optimize the inducing inputs in training')
+    parser.add_argument('--use_loo', default=False, type=str2bool,
+                        help='Whether to use the LOO (leave one out) loss (for hyper parameters)')
 
     # Likelihood
     parser.add_argument('--num_samples_pred', default=2000, type=int,
@@ -74,6 +86,12 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--p_ybary1_s0', default=1.0, type=float, help='')
     parser.add_argument('--p_ybary0_s1', default=1.0, type=float, help='')
     parser.add_argument('--p_ybary1_s1', default=1.0, type=float, help='')
+
+    # Dataset
+    parser.add_argument('--dataset_path', default='',
+                        help='Path to the numpy file that contains the data')
+    parser.add_argument('--dataset_standardize', default=False, type=str2bool,
+                        help='If True, the inputs of the dataset are standardized')
 
     args = parser.parse_args(raw_args)
 

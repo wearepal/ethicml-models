@@ -15,6 +15,7 @@ class TunePrLikelihood(BernoulliLikelihood):
         """
         `target` is expected to be two-dimensional: y and s
         y is either -1 or 1
+        s is either 0 or 1
         """
         # get samples
         num_samples = settings.num_likelihood_samples.value()
