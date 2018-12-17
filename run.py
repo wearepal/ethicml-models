@@ -29,7 +29,7 @@ class GPClassificationModel(AbstractVariationalGP):
 def main(args):
     train_x = torch.linspace(0, 1, 10)
     train_y = torch.sign(torch.cos(train_x * (4 * np.pi)))
-    train_s = torch.sign(torch.linspace(-1, 1, 10))
+    train_s = 0.5 * (torch.sign(torch.linspace(-1, 1, 10)) + 1)
     train_labels = torch.stack((train_y, train_s), dim=-1)
     # Initialize model and likelihood
     model = GPClassificationModel(train_x)

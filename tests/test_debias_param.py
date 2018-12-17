@@ -38,7 +38,7 @@ def tpr_args(biased_acceptance1, biased_acceptance2, p_ybary0_s0, p_ybary1_s0, p
 
 def invert(probs):
     probs = np.array(probs)
-    return np.stack((1 - probs, probs), 0)
+    return np.reshape(np.stack((1 - probs, probs), 0), (4, 2))
 
 
 def construct(*, p_y0_ybar0_s0, p_y1_ybar1_s0, p_y0_ybar0_s1, p_y1_ybar1_s1):

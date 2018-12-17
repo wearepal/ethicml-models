@@ -23,6 +23,7 @@ class TunePrLikelihood(BernoulliLikelihood):
         labels, sens_attr = torch.unbind(target, dim=-1)
         labels = labels.unsqueeze(0).repeat(num_samples, 1).view(-1)
         if self.training:
+            sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1)
             sens_attr = sens_attr.to(torch.int64)
             # convert labels to binary values (0 and 1)
             labels_bin = (0.5 * (labels + 1)).to(torch.int64)
@@ -35,7 +36,7 @@ class TunePrLikelihood(BernoulliLikelihood):
             # shape of debias_per_example: (batch_size, 2)
             debias_per_example = torch.index_select(debias, dim=0, index=labels_bin * 2 + sens_attr)
             weighted_lik = debias_per_example * torch.exp(log_lik)
-            log_cond_prob = torch.log(weighted_lik.sum(dim=-1))
+            log_cond_prob = weighted_lik.sum(dim=-1).log()
         else:
             log_cond_prob = log_normal_cdf(latent_samples.mul(labels))
         return log_cond_prob.sum().div(num_samples)
@@ -133,11 +134,11 @@ def debiasing_params_target_tpr(args):
         P(y|y',s) with shape (y, s, y')
     """
     # P(y=1|s)
-    positive_prior = np.array([args['biased_acceptance1'], args['biased_acceptance2']])
+    positive_prior = np.array([args.biased_acceptance1, args.biased_acceptance2])
     # P(y'=1|y=1,s)
-    positive_predictive_value = np.array([args['p_ybary1_s0'], args['p_ybary1_s1']])
+    positive_predictive_value = np.array([args.p_ybary1_s0, args.p_ybary1_s1])
     # P(y'=0|y=0,s)
-    negative_predictive_value = np.array([args['p_ybary0_s0'], args['p_ybary0_s1']])
+    negative_predictive_value = np.array([args.p_ybary0_s0, args.p_ybary0_s1])
     # P(y'=1|y=0,s)
     false_omission_rate = 1 - negative_predictive_value
     # P(y'=1|y,s) shape: (y, s)
