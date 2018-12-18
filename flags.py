@@ -6,6 +6,7 @@ def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--inf', default='Variational', help='Inference method')
     parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
+    parser.add_argument('--lik', default='TunePrLikelihood', help='Likelihood function')
     parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
     parser.add_argument('--loo_steps', default=0, type=int,
                         help='Number of steps for optimizing LOO loss; 0 disables')
@@ -20,8 +21,8 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--optimizer', default='RMSPropOptimizer', help='Optimizer to use for SGD')
     parser.add_argument('--model_name', default='local',
                         help='Name of model (used for name of checkpoints)')
-    parser.add_argument('--batch_size', default=50, type=int, help='Batch size')
-    parser.add_argument('--train_steps', default=50, type=int, help='Number of training steps')
+    parser.add_argument('--batch_size', default=500, type=int, help='Batch size')
+    parser.add_argument('--epochs', default=50, type=int, help='Number of epochs for training')
     parser.add_argument('--eval_epochs', default=10000, help='Number of epochs between evaluations')
     parser.add_argument('--summary_steps', default=100, type=int,
                         help='How many steps between saving summary')
@@ -30,7 +31,7 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--save_dir', default='',
                         help='Directory where the checkpoints and summaries are saved (or \'\')')
     parser.add_argument('--plot', default='', help='Which function to use for plotting (or \'\')')
-    parser.add_argument('--logging_steps', default=1, type=int,
+    parser.add_argument('--logging_steps', default=10, type=int,
                         help='How many steps between logging the loss')
     parser.add_argument('--gpus', default='0',
                         help='Which GPUs to use (should normally only be one)')

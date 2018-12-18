@@ -11,7 +11,7 @@ class TunePrLikelihood(BernoulliLikelihood):
         super().__init__()
         self.args = args
 
-    def variational_log_probability(self, latent_func, target):
+    def variational_log_probability(self, latent_func, labels):
         """
         `target` is expected to be two-dimensional: y and s
         y is either -1 or 1
@@ -20,14 +20,14 @@ class TunePrLikelihood(BernoulliLikelihood):
         # get samples
         num_samples = settings.num_likelihood_samples.value()
         latent_samples = latent_func.rsample(torch.Size([num_samples])).view(-1)
-        # get labels and sensitive attribute
-        labels, sens_attr = torch.unbind(target, dim=-1)
-        labels = labels.unsqueeze(0).repeat(num_samples, 1).view(-1)
+        # get target and sensitive attribute
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
         if self.training:
             sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1)
             sens_attr = sens_attr.to(torch.int64)
-            # convert labels to binary values (0 and 1)
-            labels_bin = (0.5 * (labels + 1)).to(torch.int64)
+            # convert target to binary values (0 and 1)
+            labels_bin = (0.5 * (target + 1)).to(torch.int64)
             log_lik_neg = log_normal_cdf(-latent_samples)
             log_lik_pos = log_normal_cdf(latent_samples)
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
@@ -39,11 +39,18 @@ class TunePrLikelihood(BernoulliLikelihood):
             weighted_lik = debias_per_example * torch.exp(log_lik)
             log_cond_prob = weighted_lik.sum(dim=-1).log()
         else:
-            log_cond_prob = log_normal_cdf(latent_samples.mul(labels))
+            log_cond_prob = log_normal_cdf(latent_samples.mul(target))
         return log_cond_prob.sum().div(num_samples)
 
     def _debiasing_parameters(self):
         return debiasing_params_target_rate(self.args)
+
+
+class BaselineLikelihood(BernoulliLikelihood):
+    """This is just the BernoulliLikelihood but it ignores the sensitive attributes in the labels"""
+    def variational_log_probability(self, latent_func, labels):
+        target, _ = torch.unbind(labels, dim=-1)
+        return super().variational_log_probability(latent_func, target)
 
 
 def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
