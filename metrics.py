@@ -39,7 +39,7 @@ def init_metrics(metric_flag):
     return metrics
 
 
-def update_metrics(metrics, features, labels, pred_mean):
+def update_metrics(metrics, inputs, labels, pred_mean):
     """Update metrics
 
     Args:
@@ -48,8 +48,8 @@ def update_metrics(metrics, features, labels, pred_mean):
         labels: the correct labels
         pred_mean: the predicted mean
     """
-    for name, metric in metrics.items():
-        metric.update(features, labels, pred_mean)
+    for metric in metrics.values():
+        metric.update(inputs, labels, pred_mean)
 
 
 def record_metrics(metrics, summary_writer=None, step_counter=None):
@@ -69,7 +69,7 @@ class Metric:
     """Base class for metrics"""
     name = "empty_metric"
 
-    def update(self, features, labels, pred_mean):
+    def update(self, inputs, labels, pred_mean):
         """Update the metric based on the given input, label and prediction
 
         Args:
@@ -94,7 +94,7 @@ class Rmse(Metric):
         super().__init__()
         self.metric = AverageValueMeter()
 
-    def update(self, features, labels, pred_mean):
+    def update(self, inputs, labels, pred_mean):
         self.metric.add((pred_mean - labels)**2)
 
     def result(self):
@@ -109,7 +109,7 @@ class Mae(Metric):
         super().__init__()
         self.mean = AverageValueMeter()
 
-    def update(self, features, labels, pred_mean):
+    def update(self, inputs, labels, pred_mean):
         self.mean.add((pred_mean - labels).abs().mean())
 
     def result(self):
@@ -124,7 +124,7 @@ class SoftAccuracy(Metric):
         super().__init__()
         self.accuracy = ClassErrorMeter(accuracy=True)
 
-    def update(self, features, labels, pred_mean):
+    def update(self, inputs, labels, pred_mean):
         self.accuracy.add(pred_mean.argmax(dim=1), labels.argmax(dim=1))
 
     def result(self):
@@ -135,185 +135,178 @@ class LogisticAccuracy(SoftAccuracy):
     """Accuracy for output from the logistic function"""
     name = "logistic_accuracy"
 
-    def update(self, features, labels, pred_mean):
-        self.accuracy.add(pred_mean.ge(0.5).int(), labels.add(1).mul(0.5).int())
+    def update(self, inputs, labels, pred_mean):
+        target, _ = torch.unbind(labels, dim=-1)
+        self.accuracy.add(pred_mean.ge(0.5), target.add(1).mul(0.5).int())
 
 
 class PredictionRateY1S0(Mae):
     """Acceptance Rate, group 1"""
     name = "pred_rate_y1_s0"
 
-    def update(self, features, labels, pred_mean):
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32),
-                                 tf.where(tfm.equal(features['sensitive'], 0)))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        _, sens_attr = torch.unbind(labels, dim=-1)
+        pred_s0 = torch.masked_select(pred_mean, torch.eq(sens_attr, 0))
+        self.mean.add(pred_s0.ge(0.5).float().mean())
 
 
 class PredictionRateY1S1(Mae):
     """Acceptance Rate, group 2"""
     name = "pred_rate_y1_s1"
 
-    def update(self, features, labels, pred_mean):
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32),
-                                 tf.where(tfm.equal(features['sensitive'], 1)))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        _, sens_attr = torch.unbind(labels, dim=-1)
+        pred_s1 = torch.masked_select(pred_mean, torch.eq(sens_attr, 1))
+        self.mean.add(pred_s1.ge(0.5).float().mean())
 
 
 class BaseRateY1S0(Mae):
     """Base acceptance rate, group 1"""
     name = "base_rate_y1_s0"
 
-    def update(self, features, labels, pred_mean):
-        accepted = tft.gather_nd(labels, tf.where(tfm.equal(features['sensitive'], 0)))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        target_s0 = torch.masked_select(target, torch.eq(sens_attr, 0))
+        self.mean.add(target_s0.float().add(1).mul(0.5).mean())
 
 
 class BaseRateY1S1(Mae):
     """Base acceptance rate, group 2"""
     name = "base_rate_y1_s1"
 
-    def update(self, features, labels, pred_mean):
-        accepted = tft.gather_nd(labels, tf.where(tfm.equal(features['sensitive'], 1)))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        target_s1 = torch.masked_select(target, torch.eq(sens_attr, 1))
+        self.mean.add(target_s1.float().add(1).mul(0.5).mean())
 
 
-class PredictionOddsYYbar1S0(Mae):
-    """Opportunity P(yhat=1|s,ybar=1), group 1"""
-    name = "pred_odds_yybar1_s0"
+# class PredictionOddsYYbar1S0(Mae):
+#     """Opportunity P(yhat=1|s,ybar=1), group 1"""
+#     name = "pred_odds_yybar1_s0"
 
-    def update(self, features, labels, pred_mean):
-        test_for_ybar1_s0 = tfm.logical_and(tfm.equal(features['ybar'], 1),
-                                            tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_ybar1_s0))
-        return self._return_and_store(self.mean(accepted))
-
-
-class PredictionOddsYYbar1S1(Mae):
-    """Opportunity P(yhat=1|s,ybar=1), group 2"""
-    name = "pred_odds_yybar1_s1"
-
-    def update(self, features, labels, pred_mean):
-        test_for_ybar1_s1 = tfm.logical_and(tfm.equal(features['ybar'], 1),
-                                            tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_ybar1_s1))
-        return self._return_and_store(self.mean(accepted))
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar1_s0 = tfm.logical_and(tfm.equal(features['ybar'], 1),
+#                                             tfm.equal(features['sensitive'], 0))
+#         accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_ybar1_s0)
+#         return self._return_and_store(self.mean(accepted))
 
 
-class BaseOddsYYbar1S0(Mae):
-    """Opportunity P(y=1|s,ybar=1), group 1"""
-    name = "base_odds_yybar1_s0"
+# class PredictionOddsYYbar1S1(Mae):
+#     """Opportunity P(yhat=1|s,ybar=1), group 2"""
+#     name = "pred_odds_yybar1_s1"
 
-    def update(self, features, labels, pred_mean):
-        test_for_ybar1_s0 = tfm.logical_and(tfm.equal(features['ybar'], 1),
-                                            tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(labels, tf.where(test_for_ybar1_s0))
-        return self._return_and_store(self.mean(accepted))
-
-
-class BaseOddsYYbar1S1(Mae):
-    """Opportunity P(y=1|s,ybar=1), group 2"""
-    name = "base_odds_yybar1_s1"
-
-    def update(self, features, labels, pred_mean):
-        test_for_ybar1_s1 = tfm.logical_and(tfm.equal(features['ybar'], 1),
-                                            tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(labels, tf.where(test_for_ybar1_s1))
-        return self._return_and_store(self.mean(accepted))
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar1_s1 = tfm.logical_and(tfm.equal(features['ybar'], 1),
+#                                             tfm.equal(features['sensitive'], 1))
+#         accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_ybar1_s1)
+#         return self._return_and_store(self.mean(accepted))
 
 
-class PredictionOddsYYbar0S0(Mae):
-    """Opportunity P(yhat=1|s,ybar=1), group 1"""
-    name = "pred_odds_yybar0_s0"
+# class BaseOddsYYbar1S0(Mae):
+#     """Opportunity P(y=1|s,ybar=1), group 1"""
+#     name = "base_odds_yybar1_s0"
 
-    def update(self, features, labels, pred_mean):
-        test_for_ybar0_s0 = tfm.logical_and(tfm.equal(features['ybar'], 0),
-                                            tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_ybar0_s0))
-        return self._return_and_store(self.mean(accepted))
-
-
-class PredictionOddsYYbar0S1(Mae):
-    """Opportunity P(yhat=1|s,ybar=1), group 2"""
-    name = "pred_odds_yybar0_s1"
-
-    def update(self, features, labels, pred_mean):
-        test_for_ybar0_s1 = tfm.logical_and(tfm.equal(features['ybar'], 0),
-                                            tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_ybar0_s1))
-        return self._return_and_store(self.mean(accepted))
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar1_s0 = tfm.logical_and(tfm.equal(features['ybar'], 1),
+#                                             tfm.equal(features['sensitive'], 0))
+#         accepted = tft.gather_nd(labels, tf.where(test_for_ybar1_s0))
+#         return self._return_and_store(self.mean(accepted))
 
 
-class BaseOddsYYbar0S0(Mae):
-    """Opportunity P(y=1|s,ybar=1), group 1"""
-    name = "base_odds_yybar0_s0"
+# class BaseOddsYYbar1S1(Mae):
+#     """Opportunity P(y=1|s,ybar=1), group 2"""
+#     name = "base_odds_yybar1_s1"
 
-    def update(self, features, labels, pred_mean):
-        test_for_ybar0_s0 = tfm.logical_and(tfm.equal(features['ybar'], 0),
-                                            tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(1 - labels, tf.where(test_for_ybar0_s0))
-        return self._return_and_store(self.mean(accepted))
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar1_s1 = tfm.logical_and(tfm.equal(features['ybar'], 1),
+#                                             tfm.equal(features['sensitive'], 1))
+#         accepted = tft.gather_nd(labels, tf.where(test_for_ybar1_s1))
+#         return self._return_and_store(self.mean(accepted))
 
 
-class BaseOddsYYbar0S1(Mae):
-    """Opportunity P(y=1|s,ybar=1), group 2"""
-    name = "base_odds_yybar0_s1"
+# class PredictionOddsYYbar0S0(Mae):
+#     """Opportunity P(yhat=1|s,ybar=1), group 1"""
+#     name = "pred_odds_yybar0_s0"
 
-    def update(self, features, labels, pred_mean):
-        test_for_ybar0_s1 = tfm.logical_and(tfm.equal(features['ybar'], 0),
-                                            tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(1 - labels, tf.where(test_for_ybar0_s1))
-        return self._return_and_store(self.mean(accepted))
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar0_s0 = tfm.logical_and(tfm.equal(features['ybar'], 0),
+#                                             tfm.equal(features['sensitive'], 0))
+#         accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_ybar0_s0)
+#         return self._return_and_store(self.mean(accepted))
+
+
+# class PredictionOddsYYbar0S1(Mae):
+#     """Opportunity P(yhat=1|s,ybar=1), group 2"""
+#     name = "pred_odds_yybar0_s1"
+
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar0_s1 = tfm.logical_and(tfm.equal(features['ybar'], 0),
+#                                             tfm.equal(features['sensitive'], 1))
+#         accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_ybar0_s1)
+#         return self._return_and_store(self.mean(accepted))
+
+
+# class BaseOddsYYbar0S0(Mae):
+#     """Opportunity P(y=1|s,ybar=1), group 1"""
+#     name = "base_odds_yybar0_s0"
+
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar0_s0 = tfm.logical_and(tfm.equal(features['ybar'], 0),
+#                                             tfm.equal(features['sensitive'], 0))
+#         accepted = tft.gather_nd(1 - labels, tf.where(test_for_ybar0_s0))
+#         return self._return_and_store(self.mean(accepted))
+
+
+# class BaseOddsYYbar0S1(Mae):
+#     """Opportunity P(y=1|s,ybar=1), group 2"""
+#     name = "base_odds_yybar0_s1"
+
+#     def update(self, inputs, labels, pred_mean):
+#         test_for_ybar0_s1 = tfm.logical_and(tfm.equal(features['ybar'], 0),
+#                                             tfm.equal(features['sensitive'], 1))
+#         accepted = tft.gather_nd(1 - labels, tf.where(test_for_ybar0_s1))
+#         return self._return_and_store(self.mean(accepted))
 
 
 class PredictionOddsYhatY1S0(Mae):
     """Opportunity P(yhat=1|s,y=1), group 1"""
     name = "pred_odds_yhaty1_s0"
 
-    def update(self, features, labels, pred_mean):
-        test_for_y1_s0 = tfm.logical_and(tfm.equal(labels, 1), tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_y1_s0))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        test_for_y1_s0 = torch.eq(target, 1) * torch.eq(sens_attr, 0)
+        accepted = torch.masked_select(pred_mean, test_for_y1_s0).ge(.5).float()
+        self.mean.add(accepted.mean())
 
 
 class PredictionOddsYhatY1S1(Mae):
     """Opportunity P(yhat=1|s,y=1), group 2"""
     name = "pred_odds_yhaty1_s1"
 
-    def update(self, features, labels, pred_mean):
-        test_for_y1_s1 = tfm.logical_and(tfm.equal(labels, 1), tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(tf.cast(pred_mean > 0.5, tf.float32), tf.where(test_for_y1_s1))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        test_for_y1_s1 = torch.eq(target, 1) * torch.eq(sens_attr, 1)
+        accepted = torch.masked_select(pred_mean, test_for_y1_s1).ge(.5).float()
+        self.mean.add(accepted.mean())
 
 
 class PredictionOddsYhatY0S0(Mae):
     """Opportunity P(yhat=0|s,y=0), group 1"""
     name = "pred_odds_yhaty0_s0"
 
-    def update(self, features, labels, pred_mean):
-        test_for_y0_s0 = tfm.logical_and(tfm.equal(labels, 0), tfm.equal(features['sensitive'], 0))
-        accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_y0_s0))
-        return self._return_and_store(self.mean(accepted))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        test_for_y0_s0 = torch.eq(target, 0) * torch.eq(sens_attr, 0)
+        accepted = torch.masked_select(pred_mean, test_for_y0_s0).ge(.5).float()
+        self.mean.add(accepted.mean())
 
 
 class PredictionOddsYhatY0S1(Mae):
     """Opportunity P(yhat=0|s,y=0), group 2"""
     name = "pred_odds_yhaty0_s1"
 
-    def update(self, features, labels, pred_mean):
-        test_for_y0_s1 = tfm.logical_and(tfm.equal(labels, 0), tfm.equal(features['sensitive'], 1))
-        accepted = tft.gather_nd(tf.cast(pred_mean < 0.5, tf.float32), tf.where(test_for_y0_s1))
-        return self._return_and_store(self.mean(accepted))
-
-
-def mask_for(features, **kwargs):
-    """Create a 'mask' that filters for certain values
-
-    Args:
-        features: a dictionary of tensors
-        **kwargs: entries of the dictionary with the values, only the first two are used
-    Returns:
-        a mask
-    """
-    entries = list(kwargs.items())
-    return tf.where(tfm.logical_and(tfm.equal(features[entries[0][0]], entries[0][1]),
-                                    tfm.equal(features[entries[1][0]], entries[1][1])))
+    def update(self, inputs, labels, pred_mean):
+        target, sens_attr = torch.unbind(labels, dim=-1)
+        test_for_y0_s1 = torch.eq(target, 0) * torch.eq(sens_attr, 1)
+        accepted = torch.masked_select(pred_mean, test_for_y0_s1).ge(.5).float()
+        self.mean.add(accepted.mean())
