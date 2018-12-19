@@ -1,68 +1,8 @@
 """Defines methods for metrics"""
 
 import numpy as np
+import torch
 from torchnet.meter import AverageValueMeter, ClassErrorMeter
-
-
-def init_metrics(metric_flag):
-    """Initialize metrics
-
-    Args:
-        metric_flag: a string that contains the names of the metrics separated with commas
-        is_eager: True if in eager execution
-    Returns:
-        a dictionary with the initialized metrics
-    """
-    metrics = {}
-    if metric_flag == "":
-        return metrics  # No metric names given -> return empty dictionary
-
-    # First, find all metrics
-    dict_of_metrics = {}
-    for class_name in dir(util.metrics):  # Loop over everything that is defined in `metrics`
-        class_ = getattr(util.metrics, class_name)
-        # Here, we filter out all functions and other classes which are not metrics
-        if isinstance(class_, type(Metric)) and issubclass(class_, Metric):
-            dict_of_metrics[class_.name] = class_
-
-    if isinstance(metric_flag, list):
-        metric_list = metric_flag  # `metric_flag` is already a list
-    else:
-        metric_list = metric_flag.split(',')  # Split `metric_flag` into a list
-    for name in metric_list:
-        try:
-            # Now we can just look up the metrics in the dictionary we created
-            metric = dict_of_metrics[name]
-        except KeyError:  # No metric found with the name `name`
-            raise ValueError(f"Unknown metric \"{name}\"")
-        metrics[name] = metric()
-    return metrics
-
-
-def update_metrics(metrics, inputs, labels, pred_mean):
-    """Update metrics
-
-    Args:
-        metrics: a dictionary with the initialized metrics
-        features: the input
-        labels: the correct labels
-        pred_mean: the predicted mean
-    """
-    for metric in metrics.values():
-        metric.update(inputs, labels, pred_mean)
-
-
-def record_metrics(metrics, summary_writer=None, step_counter=None):
-    """Print the result or record it in the summary
-
-    Args:
-        metrics: a dictionary with the updated metrics
-    """
-    for metric in metrics.values():
-        result = metric.result()
-        print(f"{metric.name}: {result}")
-        if summary_writer is not None and step_counter is not None:
-            summary_writer.add_scalar(metric.name, result, step_counter)
 
 
 class Metric:
@@ -107,37 +47,37 @@ class Mae(Metric):
 
     def __init__(self):
         super().__init__()
-        self.mean = AverageValueMeter()
+        self.sum = 0.0
+        self.num = 0.0
 
     def update(self, inputs, labels, pred_mean):
-        self.mean.add((pred_mean - labels).abs().mean())
+        self._add((pred_mean - labels).abs())
+
+    def _add(self, values):
+        values = values.cpu().float().numpy()
+        self.sum += values.sum()
+        self.num += values.shape[0]
 
     def result(self):
-        return self.mean
+        return self.sum / self.num
 
 
-class SoftAccuracy(Metric):
+class ClassAccuracy(Mae):
     """Accuracy for softmax output"""
-    name = "soft_accuracy"
-
-    def __init__(self):
-        super().__init__()
-        self.accuracy = ClassErrorMeter(accuracy=True)
+    name = "class_accuracy"
 
     def update(self, inputs, labels, pred_mean):
-        self.accuracy.add(pred_mean.argmax(dim=1), labels.argmax(dim=1))
-
-    def result(self):
-        return self.accuracy.value(k=1)
+        self._add(torch.eq(pred_mean.argmax(dim=1), labels.argmax(dim=1)))
 
 
-class LogisticAccuracy(SoftAccuracy):
+class BinaryAccuracy(Mae):
     """Accuracy for output from the logistic function"""
-    name = "logistic_accuracy"
+    name = "binary_accuracy"
 
     def update(self, inputs, labels, pred_mean):
         target, _ = torch.unbind(labels, dim=-1)
-        self.accuracy.add(pred_mean.ge(0.5), target.add(1).mul(0.5).int())
+        accurate = torch.eq(pred_mean.ge(0.5).int(), target.add(1).mul(0.5).int()).float()
+        self._add(accurate)
 
 
 class PredictionRateY1S0(Mae):
@@ -147,7 +87,7 @@ class PredictionRateY1S0(Mae):
     def update(self, inputs, labels, pred_mean):
         _, sens_attr = torch.unbind(labels, dim=-1)
         pred_s0 = torch.masked_select(pred_mean, torch.eq(sens_attr, 0))
-        self.mean.add(pred_s0.ge(0.5).float().mean())
+        self._add(pred_s0.ge(0.5))
 
 
 class PredictionRateY1S1(Mae):
@@ -157,7 +97,7 @@ class PredictionRateY1S1(Mae):
     def update(self, inputs, labels, pred_mean):
         _, sens_attr = torch.unbind(labels, dim=-1)
         pred_s1 = torch.masked_select(pred_mean, torch.eq(sens_attr, 1))
-        self.mean.add(pred_s1.ge(0.5).float().mean())
+        self._add(pred_s1.ge(0.5))
 
 
 class BaseRateY1S0(Mae):
@@ -167,7 +107,7 @@ class BaseRateY1S0(Mae):
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         target_s0 = torch.masked_select(target, torch.eq(sens_attr, 0))
-        self.mean.add(target_s0.float().add(1).mul(0.5).mean())
+        self._add(target_s0.float().add(1).mul(0.5))
 
 
 class BaseRateY1S1(Mae):
@@ -177,7 +117,7 @@ class BaseRateY1S1(Mae):
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         target_s1 = torch.masked_select(target, torch.eq(sens_attr, 1))
-        self.mean.add(target_s1.float().add(1).mul(0.5).mean())
+        self._add(target_s1.float().add(1).mul(0.5))
 
 
 # class PredictionOddsYYbar1S0(Mae):
@@ -276,7 +216,7 @@ class PredictionOddsYhatY1S0(Mae):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y1_s0 = torch.eq(target, 1) * torch.eq(sens_attr, 0)
         accepted = torch.masked_select(pred_mean, test_for_y1_s0).ge(.5).float()
-        self.mean.add(accepted.mean())
+        self._add(accepted)
 
 
 class PredictionOddsYhatY1S1(Mae):
@@ -287,7 +227,7 @@ class PredictionOddsYhatY1S1(Mae):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y1_s1 = torch.eq(target, 1) * torch.eq(sens_attr, 1)
         accepted = torch.masked_select(pred_mean, test_for_y1_s1).ge(.5).float()
-        self.mean.add(accepted.mean())
+        self._add(accepted)
 
 
 class PredictionOddsYhatY0S0(Mae):
@@ -298,7 +238,7 @@ class PredictionOddsYhatY0S0(Mae):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y0_s0 = torch.eq(target, 0) * torch.eq(sens_attr, 0)
         accepted = torch.masked_select(pred_mean, test_for_y0_s0).ge(.5).float()
-        self.mean.add(accepted.mean())
+        self._add(accepted)
 
 
 class PredictionOddsYhatY0S1(Mae):
@@ -309,4 +249,4 @@ class PredictionOddsYhatY0S1(Mae):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y0_s1 = torch.eq(target, 0) * torch.eq(sens_attr, 1)
         accepted = torch.masked_select(pred_mean, test_for_y0_s1).ge(.5).float()
-        self.mean.add(accepted.mean())
+        self._add(accepted)

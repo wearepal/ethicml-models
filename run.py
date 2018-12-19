@@ -9,12 +9,14 @@ from torchnet.meter import AverageValueMeter
 import numpy as np
 # from matplotlib import pyplot as plt
 
+import gpytorch
 from gpytorch.mlls.variational_elbo import VariationalELBO
 
 import fair_likelihood
 from flags import parse_arguments
 from gp_model import GPClassificationModel
 from dataset import from_numpy
+import utils
 
 
 def train(model, optimizer, dataset, loss_func, step_counter, args):
@@ -23,17 +25,20 @@ def train(model, optimizer, dataset, loss_func, step_counter, args):
     model.train()
     loss_func.likelihood.train()
     for (batch_num, (inputs, labels)) in enumerate(dataset):
+        if args.use_cuda:
+            inputs, labels = inputs.cuda(), labels.cuda()
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
         # Get predictive output
         output = model(inputs)
         # Calc loss and backprop gradients
-        loss = -loss_func(output, labels)
+        with gpytorch.settings.num_likelihood_samples(args.num_samples):
+            loss = -loss_func(output, labels)
         loss.backward()
         optimizer.step()
 
         if args.logging_steps != 0 and batch_num % args.logging_steps == 0:
-            print(f"Step #{step_counter} ({time.time() - start:.4f} sec)\t", end=' ')
+            print(f"Step #{step_counter + batch_num} ({time.time() - start:.4f} sec)\t", end=' ')
             print(f"loss: {loss.item():.3f}", end=' ')
             # for loss_name, loss_value in obj_func.items():
             #     print(f"{loss_name}: {loss_value:.2f}", end=' ')
@@ -41,29 +46,28 @@ def train(model, optimizer, dataset, loss_func, step_counter, args):
             start = time.time()
 
 
-def evaluate(model, likelihood, dataset, loss_func):
+def evaluate(model, likelihood, dataset, loss_func, step_counter, args):
     """Evaluate on test set"""
     # Go into eval mode
     model.eval()
     likelihood.eval()
 
     loss_meter = AverageValueMeter()
-    accuracy = AverageValueMeter()
+    metrics = utils.init_metrics(args.metrics)
 
     with torch.no_grad():
         for inputs, labels in dataset:
+            if args.use_cuda:
+                inputs, labels = inputs.cuda(), labels.cuda()
             output = model(inputs)
             loss = -loss_func(output, labels)
             loss_meter.add(loss.item())
             # Get classification predictions
             observed_pred = likelihood(output)
-            # Get the predicted labels (probabilites of belonging to the positive class)
-            # Transform these probabilities to be 0/1 labels
-            pred_labels = observed_pred.mean.ge(0.5).float().mul(2).sub(1)
-            accuracy.add((labels[:, 0].numpy() == pred_labels.numpy()).astype(np.float32).mean())
-        print(f"Accuracy: {accuracy.mean}")
+            utils.update_metrics(metrics, inputs, labels, observed_pred.mean)
     average_loss = loss_meter.mean
     print(f"Average loss: {average_loss}")
+    utils.record_metrics(metrics, step_counter=step_counter)
     return average_loss
 
 
@@ -97,6 +101,7 @@ def main(args):
 
     # Load data
     train_ds, test_ds, inducing_inputs = from_numpy(args)
+    print(f"Number of training samples: {len(train_ds)}")
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_ds, batch_size=args.batch_size)
 
@@ -107,12 +112,19 @@ def main(args):
     else:
         save_dir = Path(mkdtemp())  # Create temporary directory
 
+    # Check if CUDA is available
+    args.use_cuda = torch.cuda.is_available()
+
     # Initialize model and likelihood
+    if args.use_cuda:
+        inducing_inputs = inducing_inputs.cuda()
     model = GPClassificationModel(inducing_inputs, args)
     likelihood = getattr(fair_likelihood, args.lik)(args)
+    if args.use_cuda:
+        model, likelihood = model.cuda(), likelihood.cuda()
 
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # Initialize optimizer
+    optimizer = getattr(torch.optim, args.optimizer)(model.parameters(), lr=args.lr)
 
     # "Loss" for GPs - the marginal log likelihood
     # num_data refers to the amount of training data
@@ -142,7 +154,7 @@ def main(args):
         end = time.time()
         print(f"Train time for epochs {epoch} (global step {step_counter}):"
               f" {end - start:0.2f}s")
-        val_loss = evaluate(model, likelihood, test_loader, mll)
+        val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, args)
         is_best = val_loss < best_loss
         best_loss = min(val_loss, best_loss)
 

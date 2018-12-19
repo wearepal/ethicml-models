@@ -8,6 +8,7 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
     parser.add_argument('--lik', default='TunePrLikelihood', help='Likelihood function')
     parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
+    parser.add_argument('--metrics', default='binary_accuracy', help='List of metrics to log')
     parser.add_argument('--loo_steps', default=0, type=int,
                         help='Number of steps for optimizing LOO loss; 0 disables')
     parser.add_argument('--nelbo_steps', default=0, type=int,
@@ -18,7 +19,7 @@ def parse_arguments(raw_args=None):
                         help='Suggested number of train examples (datasets don\'t have to use it)')
     parser.add_argument('--num_inducing', default=10, type=int,
                         help='Suggested number of inducing inputs (datasets don\'t have to use it)')
-    parser.add_argument('--optimizer', default='RMSPropOptimizer', help='Optimizer to use for SGD')
+    parser.add_argument('--optimizer', default='Adam', help='Optimizer to use for SGD')
     parser.add_argument('--model_name', default='local',
                         help='Name of model (used for name of checkpoints)')
     parser.add_argument('--batch_size', default=500, type=int, help='Batch size')

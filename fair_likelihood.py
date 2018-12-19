@@ -32,6 +32,8 @@ class TunePrLikelihood(BernoulliLikelihood):
             log_lik_pos = log_normal_cdf(latent_samples)
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
             debias = self._debiasing_parameters()
+            if self.args.use_cuda:
+                debias = debias.cuda()
             # `debias` has the shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
             # then we use this as index for `debias`
             # shape of debias_per_example: (batch_size, 2)
@@ -48,6 +50,9 @@ class TunePrLikelihood(BernoulliLikelihood):
 
 class BaselineLikelihood(BernoulliLikelihood):
     """This is just the BernoulliLikelihood but it ignores the sensitive attributes in the labels"""
+    def __init__(self, _):
+        super().__init__()
+
     def variational_log_probability(self, latent_func, labels):
         target, _ = torch.unbind(labels, dim=-1)
         return super().variational_log_probability(latent_func, target)

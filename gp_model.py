@@ -5,7 +5,11 @@ from gpytorch.variational import CholeskyVariationalDistribution, VariationalStr
 class GPClassificationModel(AbstractVariationalGP):
     def __init__(self, inducing_inputs, args):
         variational_distribution = CholeskyVariationalDistribution(inducing_inputs.shape[0])
-        variational_strategy = VariationalStrategy(self, inducing_inputs, variational_distribution)
+
+        # The variational strategy defines how the GP prior is computed and
+        # how to marginalize out the inducing point function values
+        variational_strategy = VariationalStrategy(self, inducing_inputs, variational_distribution,
+                                                   learn_inducing_locations=args.optimize_inducing)
         super(GPClassificationModel, self).__init__(variational_strategy)
         self.mean_module = gpytorch.means.ConstantMean()
         self.covar_module = gpytorch.kernels.ScaleKernel(getattr(gpytorch.kernels, args.cov)())
