@@ -31,20 +31,21 @@ class TunePrLikelihood(BernoulliLikelihood):
             log_lik_neg = log_normal_cdf(-latent_samples)
             log_lik_pos = log_normal_cdf(latent_samples)
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
-            debias = self._debiasing_parameters()
+            log_debias = self._log_debiasing_parameters()
             if self.args.use_cuda:
-                debias = debias.cuda()
-            # `debias` has the shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
-            # then we use this as index for `debias`
-            # shape of debias_per_example: (batch_size, 2)
-            debias_per_example = torch.index_select(debias, dim=0, index=labels_bin * 2 + sens_attr)
-            weighted_lik = debias_per_example * torch.exp(log_lik)
-            log_cond_prob = weighted_lik.sum(dim=-1).log()
+                log_debias = log_debias.cuda()
+            # `log_debias` has shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
+            # then we use this as index for `log_debias`
+            # shape of log_debias_per_example: (batch_size, 2)
+            log_debias_per_example = torch.index_select(input=log_debias, dim=0,
+                                                        index=labels_bin * 2 + sens_attr)
+            weighted_log_lik = log_debias_per_example + log_lik
+            log_cond_prob = weighted_log_lik.logsumexp(dim=-1)
         else:
             log_cond_prob = log_normal_cdf(latent_samples.mul(target))
         return log_cond_prob.sum().div(num_samples)
 
-    def _debiasing_parameters(self):
+    def _log_debiasing_parameters(self):
         return debiasing_params_target_rate(self.args)
 
 
@@ -88,7 +89,9 @@ def compute_label_posterior(positive_value, positive_prior, label_evidence=None)
     label_posterior = joint / label_evidence
     # reshape to (y * s, y') so that we can use gather on the first dimension
     label_posterior = np.reshape(label_posterior, (4, 2))
-    return torch.from_numpy(label_posterior.astype(np.float32))
+    # take logarithm because we need that anyway later
+    log_label_posterior = np.log(label_posterior)
+    return torch.from_numpy(log_label_posterior.astype(np.float32))
 
 
 def debiasing_params_target_rate(args):
