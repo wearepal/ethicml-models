@@ -88,6 +88,32 @@ def predict(model, likelihood, dataset):
     return np.concatenate(predictions, axis=0)
 
 
+def construct(flags, inducing_inputs, num_data):
+    """Construct GP object, likelihood and marginal log likelihood function from the flags
+
+    Args:
+        flags: settings object
+        inducing_inputs: a tensor with the inducing inputs
+        num_data: the amount of training data
+    """
+    if flags.use_cuda:
+        inducing_inputs = inducing_inputs.cuda()
+
+    # Initialize model and likelihood
+    # We use the built-in function "getattr" to turn the flags into Python references
+    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(inducing_inputs, flags)
+    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
+    if flags.use_cuda:
+        model, likelihood = model.cuda(), likelihood.cuda()
+
+    # "Loss" for GPs - the marginal log likelihood
+    mll = model.get_marginal_log_likelihood(likelihood, num_data)
+
+    # Initialize optimizer
+    optimizer = getattr(torch.optim, flags.optimizer)(model.parameters(), lr=flags.lr)
+    return model, likelihood, mll, optimizer
+
+
 def main(flags):
     # Toy data:
     # train_x = torch.linspace(0, 1, 10)
@@ -113,26 +139,13 @@ def main(flags):
 
     # Check if CUDA is available
     flags.use_cuda = torch.cuda.is_available()
-
-    # Initialize model and likelihood
-    if flags.use_cuda:
-        inducing_inputs = inducing_inputs.cuda()
-    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(inducing_inputs, flags)
-    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
-    if flags.use_cuda:
-        model, likelihood = model.cuda(), likelihood.cuda()
-
-    # Initialize optimizer
-    optimizer = getattr(torch.optim, flags.optimizer)(model.parameters(), lr=flags.lr)
-
-    # "Loss" for GPs - the marginal log likelihood
-    # num_data refers to the amount of training data
-    mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
+    # Construct model and all other necessary objects
+    model, likelihood, mll, optimizer = construct(flags, inducing_inputs, len(train_ds))
 
     best_loss = np.inf
     start_epoch = 1
 
-    # Restore from existing checkpoint
+    # Restore from checkpoint if one exists
     best_checkpoint = save_dir / 'model_best.pth.tar'
     if best_checkpoint.is_file():
         checkpoint = torch.load(str(best_checkpoint))
