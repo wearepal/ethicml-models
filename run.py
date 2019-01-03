@@ -10,11 +10,10 @@ import numpy as np
 # from matplotlib import pyplot as plt
 
 import gpytorch
-from gpytorch.mlls.variational_elbo import VariationalELBO
 
 import fair_likelihood
 from flags import parse_arguments
-from gp_model import GPClassificationModel
+import gp_model
 from dataset import from_numpy
 import utils
 
@@ -118,7 +117,7 @@ def main(args):
     # Initialize model and likelihood
     if args.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
-    model = GPClassificationModel(inducing_inputs, args)
+    model = getattr(gp_model, args.inf)(inducing_inputs, args)
     likelihood = getattr(fair_likelihood, args.lik)(args)
     if args.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
@@ -128,7 +127,7 @@ def main(args):
 
     # "Loss" for GPs - the marginal log likelihood
     # num_data refers to the amount of training data
-    mll = VariationalELBO(likelihood, model, len(train_ds))
+    mll = model.get_marginal_log_likelihood(likelihood, model, len(train_ds))
 
     best_loss = np.inf
     start_epoch = 1
