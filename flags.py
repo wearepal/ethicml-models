@@ -24,7 +24,7 @@ def parse_arguments(raw_args=None):
                         help='Name of model (used for name of checkpoints)')
     parser.add_argument('--batch_size', default=500, type=int, help='Batch size')
     parser.add_argument('--epochs', default=50, type=int, help='Number of epochs for training')
-    parser.add_argument('--eval_epochs', default=10000, help='Number of epochs between evaluations')
+    parser.add_argument('--eval_epochs', default=1, help='Number of epochs between evaluations')
     parser.add_argument('--summary_steps', default=100, type=int,
                         help='How many steps between saving summary')
     parser.add_argument('--chkpnt_steps', default=5000, type=int,

@@ -154,9 +154,14 @@ def main(args):
         end = time.time()
         print(f"Train time for epochs {epoch} (global step {step_counter}):"
               f" {end - start:0.2f}s")
-        val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, args)
-        is_best = val_loss < best_loss
-        best_loss = min(val_loss, best_loss)
+        if epoch % args.eval_epochs == 0:
+            # do evaluation and update the best loss
+            val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, args)
+            is_best_loss_yet = val_loss < best_loss
+            best_loss = min(val_loss, best_loss)
+        else:
+            # we don't know if the loss is better so we'll assume it's not to be on the safe side
+            is_best_loss_yet = False
 
         # Save checkpoint
         checkpoint = {
@@ -167,7 +172,7 @@ def main(args):
             'epoch': epoch,
             'best_loss': best_loss,
         }
-        save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best, save_dir)
+        save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet, save_dir)
 
     # # Initialize fig and axes for plot
     # fig, plot = plt.subplots(figsize=(4, 3))
@@ -177,12 +182,12 @@ def main(args):
     # plot.legend(['Observed Data', 'Mean', 'Confidence'])
 
 
-def save_checkpoint(checkpoint, filename, is_best, save_dir):
+def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):
     print(f"===> Saving checkpoint '{filename}'")
     model_filename = save_dir / filename
     torch.save(checkpoint, model_filename)
     best_filename = save_dir / 'model_best.pth.tar'
-    if is_best:
+    if is_best_loss_yet:
         shutil.copyfile(model_filename, best_filename)
     print(f"===> Saved checkpoint '{model_filename}'")
 
