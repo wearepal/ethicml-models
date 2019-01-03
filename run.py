@@ -87,7 +87,10 @@ def predict(model, likelihood, dataset, use_cuda):
             # Get mean and variance
             pred_mean.append(observed_pred.mean.cpu().numpy())
             pred_var.append(observed_pred.variance.cpu().numpy())
-    return np.concatenate(pred_mean, axis=0), np.concatenate(pred_var, axis=0)
+    pred_mean, pred_var = np.concatenate(pred_mean, axis=0), np.concatenate(pred_var, axis=0)
+    if len(pred_mean.shape) == 1:
+        pred_mean, pred_var = pred_mean[:, np.newaxis], pred_var[:, np.newaxis]
+    return pred_mean, pred_var
 
 
 def construct(flags, inducing_inputs, num_data):
