@@ -18,11 +18,11 @@ from dataset import from_numpy
 import utils
 
 
-def train(model, optimizer, dataset, loss_func, step_counter, args):
+def train(model, optimizer, dataset, mll, step_counter, args):
     """Train for one epoch"""
     start = time.time()
     model.train()
-    loss_func.likelihood.train()
+    mll.likelihood.train()
     for (batch_num, (inputs, labels)) in enumerate(dataset):
         if args.use_cuda:
             inputs, labels = inputs.cuda(), labels.cuda()
@@ -32,7 +32,7 @@ def train(model, optimizer, dataset, loss_func, step_counter, args):
         output = model(inputs)
         # Calc loss and backprop gradients
         with gpytorch.settings.num_likelihood_samples(args.num_samples):
-            loss = -loss_func(output, labels)
+            loss = -mll(output, labels)
         loss.backward()
         optimizer.step()
 
@@ -45,7 +45,7 @@ def train(model, optimizer, dataset, loss_func, step_counter, args):
             start = time.time()
 
 
-def evaluate(model, likelihood, dataset, loss_func, step_counter, args):
+def evaluate(model, likelihood, dataset, mll, step_counter, args):
     """Evaluate on test set"""
     # Go into eval mode
     model.eval()
@@ -59,7 +59,7 @@ def evaluate(model, likelihood, dataset, loss_func, step_counter, args):
             if args.use_cuda:
                 inputs, labels = inputs.cuda(), labels.cuda()
             output = model(inputs)
-            loss = -loss_func(output, labels)
+            loss = -mll(output, labels)
             loss_meter.add(loss.item())
             # Get classification predictions
             observed_pred = likelihood(output)
@@ -117,8 +117,8 @@ def main(args):
     # Initialize model and likelihood
     if args.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
-    model = getattr(gp_model, args.inf)(inducing_inputs, args)
-    likelihood = getattr(fair_likelihood, args.lik)(args)
+    model: gpytorch.models.GP = getattr(gp_model, args.inf)(inducing_inputs, args)
+    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, args.lik)(args)
     if args.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 
