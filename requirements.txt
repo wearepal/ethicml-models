@@ -1,0 +1,2 @@
+torchnet==0.0.4
+gpytorch==0.1.1
