@@ -70,22 +70,24 @@ def evaluate(model, likelihood, dataset, mll, step_counter, flags):
     return average_loss
 
 
-def predict(model, likelihood, dataset):
+def predict(model, likelihood, dataset, use_cuda):
     """Make predictions"""
     # Go into eval mode
     model.eval()
     likelihood.eval()
 
-    predictions = []
+    pred_mean = []
+    pred_var = []
     with torch.no_grad():
-        for sample in dataset:
-            inputs, _ = sample
+        for inputs, _ in dataset:
+            if use_cuda:
+                inputs = inputs.cuda()
             # Get classification predictions
             observed_pred = likelihood(model(inputs))
-            # Get the predicted labels (probabilites of belonging to the positive class)
-            # Transform these probabilities to be 0/1 labels
-            predictions.append(observed_pred.mean.ge(0.5).float().mul(2).sub(1).numpy())
-    return np.concatenate(predictions, axis=0)
+            # Get mean and variance
+            pred_mean.append(observed_pred.mean.cpu().numpy())
+            pred_var.append(observed_pred.variance.cpu().numpy())
+    return np.concatenate(pred_mean, axis=0), np.concatenate(pred_var, axis=0)
 
 
 def construct(flags, inducing_inputs, num_data):
@@ -186,12 +188,13 @@ def main(flags):
         }
         save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet, save_dir)
 
-    # # Initialize fig and axes for plot
-    # fig, plot = plt.subplots(figsize=(4, 3))
-    # plot.plot(train_x.numpy(), train_y.numpy(), 'k*')
-    # plot.plot(test_x.numpy(), pred_labels.numpy(), 'b')
-    # plot.set_ylim([-3, 3])
-    # plot.legend(['Observed Data', 'Mean', 'Confidence'])
+    # save predictions for the test set if the preds_path flag is set
+    if flags.preds_path:
+        print("Making predictions...")
+        pred_mean, pred_var = predict(model, likelihood, test_loader, flags.use_cuda)
+        working_dir = save_dir if flags.save_dir else Path(".")
+        np.savez_compressed(working_dir / flags.preds_path, pred_mean=pred_mean, pred_var=pred_var)
+        print(f"Saved in \"{str(working_dir / flags.preds_path)}\"")
 
 
 def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):
