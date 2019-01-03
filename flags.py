@@ -95,12 +95,12 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--dataset_standardize', default=False, type=str2bool,
                         help='If True, the inputs of the dataset are standardized')
 
-    args = parser.parse_args(raw_args)
+    flags = parser.parse_args(raw_args)
 
     # Random seeding
-    if args.manual_seed is None:
-        args.manual_seed = random.randint(1, 100000)
-    return args
+    if flags.manual_seed is None:
+        flags.manual_seed = random.randint(1, 100000)
+    return flags
 
 
 def str2bool(bool_str):

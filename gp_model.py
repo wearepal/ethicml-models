@@ -6,16 +6,16 @@ from gpytorch.variational import CholeskyVariationalDistribution, VariationalStr
 
 class Variational(AbstractVariationalGP):
     """GP using variational inference"""
-    def __init__(self, inducing_inputs, args):
+    def __init__(self, inducing_inputs, flags):
         variational_distribution = CholeskyVariationalDistribution(inducing_inputs.shape[0])
 
         # The variational strategy defines how the GP prior is computed and
         # how to marginalize out the inducing point function values
         variational_strategy = VariationalStrategy(self, inducing_inputs, variational_distribution,
-                                                   learn_inducing_locations=args.optimize_inducing)
+                                                   learn_inducing_locations=flags.optimize_inducing)
         super().__init__(variational_strategy)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(getattr(gpytorch.kernels, args.cov)())
+        self.covar_module = gpytorch.kernels.ScaleKernel(getattr(gpytorch.kernels, flags.cov)())
 
     def forward(self, x):
         mean_x = self.mean_module(x)
@@ -30,10 +30,10 @@ class Variational(AbstractVariationalGP):
 
 class Exact(ExactGP):
     """GP using exact inference"""
-    def __init__(self, train_x, train_y, likelihood, args):
+    def __init__(self, train_x, train_y, likelihood, flags):
         super().__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(getattr(gpytorch.kernels, args.cov)())
+        self.covar_module = gpytorch.kernels.ScaleKernel(getattr(gpytorch.kernels, flags.cov)())
 
     def forward(self, x):
         mean_x = self.mean_module(x)

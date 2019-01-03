@@ -18,25 +18,25 @@ from dataset import from_numpy
 import utils
 
 
-def train(model, optimizer, dataset, mll, step_counter, args):
+def train(model, optimizer, dataset, mll, step_counter, flags):
     """Train for one epoch"""
     start = time.time()
     model.train()
     mll.likelihood.train()
     for (batch_num, (inputs, labels)) in enumerate(dataset):
-        if args.use_cuda:
+        if flags.use_cuda:
             inputs, labels = inputs.cuda(), labels.cuda()
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
         # Get predictive output
         output = model(inputs)
         # Calc loss and backprop gradients
-        with gpytorch.settings.num_likelihood_samples(args.num_samples):
+        with gpytorch.settings.num_likelihood_samples(flags.num_samples):
             loss = -mll(output, labels)
         loss.backward()
         optimizer.step()
 
-        if args.logging_steps != 0 and batch_num % args.logging_steps == 0:
+        if flags.logging_steps != 0 and batch_num % flags.logging_steps == 0:
             print(f"Step #{step_counter + batch_num} ({time.time() - start:.4f} sec)\t", end=' ')
             print(f"loss: {loss.item():.3f}", end=' ')
             # for loss_name, loss_value in obj_func.items():
@@ -45,18 +45,18 @@ def train(model, optimizer, dataset, mll, step_counter, args):
             start = time.time()
 
 
-def evaluate(model, likelihood, dataset, mll, step_counter, args):
+def evaluate(model, likelihood, dataset, mll, step_counter, flags):
     """Evaluate on test set"""
     # Go into eval mode
     model.eval()
     likelihood.eval()
 
     loss_meter = AverageValueMeter()
-    metrics = utils.init_metrics(args.metrics)
+    metrics = utils.init_metrics(flags.metrics)
 
     with torch.no_grad():
         for inputs, labels in dataset:
-            if args.use_cuda:
+            if flags.use_cuda:
                 inputs, labels = inputs.cuda(), labels.cuda()
             output = model(inputs)
             loss = -mll(output, labels)
@@ -88,7 +88,7 @@ def predict(model, likelihood, dataset):
     return np.concatenate(predictions, axis=0)
 
 
-def main(args):
+def main(flags):
     # Toy data:
     # train_x = torch.linspace(0, 1, 10)
     # train_y = torch.sign(torch.cos(train_x * (4 * np.pi)))
@@ -99,31 +99,31 @@ def main(args):
     # test_y = torch.sign(torch.cos(test_x * (4 * np.pi)))
 
     # Load data
-    train_ds, test_ds, inducing_inputs = from_numpy(args)
+    train_ds, test_ds, inducing_inputs = from_numpy(flags)
     print(f"Number of training samples: {len(train_ds)}")
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=args.batch_size)
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=flags.batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=flags.batch_size)
 
     # Set checkpoint path
-    if args.save_dir:
-        save_dir = Path(args.save_dir) / args.model_name
+    if flags.save_dir:
+        save_dir = Path(flags.save_dir) / flags.model_name
         save_dir.mkdir(parents=True, exist_ok=True)
     else:
         save_dir = Path(mkdtemp())  # Create temporary directory
 
     # Check if CUDA is available
-    args.use_cuda = torch.cuda.is_available()
+    flags.use_cuda = torch.cuda.is_available()
 
     # Initialize model and likelihood
-    if args.use_cuda:
+    if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
-    model: gpytorch.models.GP = getattr(gp_model, args.inf)(inducing_inputs, args)
-    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, args.lik)(args)
-    if args.use_cuda:
+    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(inducing_inputs, flags)
+    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
+    if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 
     # Initialize optimizer
-    optimizer = getattr(torch.optim, args.optimizer)(model.parameters(), lr=args.lr)
+    optimizer = getattr(torch.optim, flags.optimizer)(model.parameters(), lr=flags.lr)
 
     # "Loss" for GPs - the marginal log likelihood
     # num_data refers to the amount of training data
@@ -144,18 +144,18 @@ def main(args):
         best_loss = checkpoint['best_loss']
 
     # Find optimal model hyperparameters
-    for i in range(args.epochs):
+    for i in range(flags.epochs):
         epoch = start_epoch + i
         print(f"Training on epoch {epoch}")
         start = time.time()
         step_counter = (epoch - 1) * len(train_loader)
-        train(model, optimizer, train_loader, mll, step_counter, args)
+        train(model, optimizer, train_loader, mll, step_counter, flags)
         end = time.time()
         print(f"Train time for epochs {epoch} (global step {step_counter}):"
               f" {end - start:0.2f}s")
-        if epoch % args.eval_epochs == 0:
+        if epoch % flags.eval_epochs == 0:
             # do evaluation and update the best loss
-            val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, args)
+            val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
             is_best_loss_yet = val_loss < best_loss
             best_loss = min(val_loss, best_loss)
         else:

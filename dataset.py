@@ -6,17 +6,17 @@ from torch.utils.data import TensorDataset
 import numpy as np
 
 
-def from_numpy(args):
+def from_numpy(flags):
     """Load all data from `dataset_path` and then construct a dataset
 
     You must specify a path to a numpy file in the flag `dataset_path`. This file must contain
     the following numpy arrays: 'xtrain', 'ytrain', 'strain', 'xtest', 'ytest', 'stest'.
     """
     # Load data from `dataset_path`
-    raw_data = np.load(Path(args.dataset_path))
+    raw_data = np.load(Path(flags.dataset_path))
 
     # Normalize input and create DATA tuples for easier handling
-    input_normalizer = _get_normalizer(raw_data['xtrain'], args.dataset_standardize)
+    input_normalizer = _get_normalizer(raw_data['xtrain'], flags.dataset_standardize)
     train_x = torch.tensor(input_normalizer(raw_data['xtrain']), dtype=torch.float32)
     train_y = torch.tensor(raw_data['ytrain'], dtype=torch.float32)
     train_s = torch.tensor(raw_data['strain'], dtype=torch.float32)
@@ -28,9 +28,10 @@ def from_numpy(args):
     test_y = _fix_labels(test_y)
 
     # # Construct the inducing inputs from the separated data
-    inducing_inputs = _inducing_inputs(args.num_inducing, train_x, train_s, args.s_as_input).clone()
+    inducing_inputs = _inducing_inputs(
+        flags.num_inducing, train_x, train_s, flags.s_as_input).clone()
 
-    if args.s_as_input:
+    if flags.s_as_input:
         train_x = torch.cat((train_x, train_s), dim=1)
         test_x = torch.cat((test_x, test_s), dim=1)
     train_ds = TensorDataset(train_x, torch.cat((train_y, train_s), dim=1))
@@ -44,7 +45,9 @@ def _inducing_inputs(max_num_inducing, train_x, train_s, s_as_input):
     This could be done more cleverly with k means
 
     Args:
-        train: the training data
+        max_num_inducing: the desired maximum number of inducing inputs
+        train_x: the training inputs
+        train_s: the training sensitive attributes
         s_as_input: whether or not the sensitive attribute is part of the input
 
     Returns:

@@ -7,9 +7,10 @@ from gpytorch.functions import log_normal_cdf
 
 
 class TunePrLikelihood(BernoulliLikelihood):
-    def __init__(self, args):
+    """Likelihood that allows tuning the positive rate of the predictions"""
+    def __init__(self, flags):
         super().__init__()
-        self.args = args
+        self.flags = flags
 
     def variational_log_probability(self, latent_func, labels):
         """
@@ -32,7 +33,7 @@ class TunePrLikelihood(BernoulliLikelihood):
             log_lik_pos = log_normal_cdf(latent_samples)
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
             log_debias = self._log_debiasing_parameters()
-            if self.args.use_cuda:
+            if self.flags.use_cuda:
                 log_debias = log_debias.cuda()
             # `log_debias` has shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
             # then we use this as index for `log_debias`
@@ -46,7 +47,7 @@ class TunePrLikelihood(BernoulliLikelihood):
         return log_cond_prob.sum().div(num_samples)
 
     def _log_debiasing_parameters(self):
-        return debiasing_params_target_rate(self.args)
+        return debiasing_params_target_rate(self.flags)
 
 
 class BaselineLikelihood(BernoulliLikelihood):
@@ -94,31 +95,31 @@ def compute_label_posterior(positive_value, positive_prior, label_evidence=None)
     return torch.from_numpy(log_label_posterior.astype(np.float32))
 
 
-def debiasing_params_target_rate(args):
+def debiasing_params_target_rate(flags):
     """Debiasing parameters for implementing target acceptance rates
     Args:
-        args: dictionary with parameters
+        flags: object with parameters
     Returns:
         P(y|y',s) with shape (y, s, y')
     """
-    if args.probs_from_flipped:
-        biased_acceptance1 = 0.5 * (1 - args.reject_flip_probability)
-        biased_acceptance2 = 0.5 * (1 + args.accept_flip_probability)
+    if flags.probs_from_flipped:
+        biased_acceptance1 = 0.5 * (1 - flags.reject_flip_probability)
+        biased_acceptance2 = 0.5 * (1 + flags.accept_flip_probability)
     else:
-        biased_acceptance1 = args.biased_acceptance1
-        biased_acceptance2 = args.biased_acceptance2
+        biased_acceptance1 = flags.biased_acceptance1
+        biased_acceptance2 = flags.biased_acceptance2
     # P(y'=1|s)
-    target_acceptance = np.array([args.target_rate1, args.target_rate2])
+    target_acceptance = np.array([flags.target_rate1, flags.target_rate2])
     # P(y=1|s)
     positive_prior = np.array([biased_acceptance1, biased_acceptance2])
     # P(y'=1|y,s) shape: (y, s)
-    positive_value = positive_label_likelihood(args, positive_prior, target_acceptance)
+    positive_value = positive_label_likelihood(flags, positive_prior, target_acceptance)
     # P(y'|s) shape: (s, y')
     label_evidence = np.stack([1 - target_acceptance, target_acceptance], axis=-1)
     return compute_label_posterior(positive_value, positive_prior, label_evidence)
 
 
-def positive_label_likelihood(args, biased_acceptance, target_acceptance):
+def positive_label_likelihood(flags, biased_acceptance, target_acceptance):
     """Compute the label likelihood (for positive labels)
     Args:
         biased_acceptance: P(y=1|s)
@@ -129,7 +130,7 @@ def positive_label_likelihood(args, biased_acceptance, target_acceptance):
     positive_lik = []
     for s, (target, biased) in enumerate(zip(target_acceptance, biased_acceptance)):
         # P(y'=1|y=1)
-        p_ybary1 = args.p_ybary0_or_ybary1_s0 if s == 0 else args.p_ybary0_or_ybary1_s1
+        p_ybary1 = flags.p_ybary0_or_ybary1_s0 if s == 0 else flags.p_ybary0_or_ybary1_s1
         if target > biased:
             # P(y'=1|y=0) = (P(y'=1) - P(y'=1|y=1)P(y=1))/P(y=0)
             p_ybar1_y0 = (target - p_ybary1 * biased) / (1 - biased)
@@ -142,19 +143,19 @@ def positive_label_likelihood(args, biased_acceptance, target_acceptance):
     return np.transpose(positive_lik_arr)  # shape: (y, s)
 
 
-def debiasing_params_target_tpr(args):
+def debiasing_params_target_tpr(flags):
     """Debiasing parameters for targeting TPRs and TNRs
     Args:
-        args: dictionary with parameters
+        flags: object with parameters
     Returns:
         P(y|y',s) with shape (y, s, y')
     """
     # P(y=1|s)
-    positive_prior = np.array([args.biased_acceptance1, args.biased_acceptance2])
+    positive_prior = np.array([flags.biased_acceptance1, flags.biased_acceptance2])
     # P(y'=1|y=1,s)
-    positive_predictive_value = np.array([args.p_ybary1_s0, args.p_ybary1_s1])
+    positive_predictive_value = np.array([flags.p_ybary1_s0, flags.p_ybary1_s1])
     # P(y'=0|y=0,s)
-    negative_predictive_value = np.array([args.p_ybary0_s0, args.p_ybary0_s1])
+    negative_predictive_value = np.array([flags.p_ybary0_s0, flags.p_ybary0_s1])
     # P(y'=1|y=0,s)
     false_omission_rate = 1 - negative_predictive_value
     # P(y'=1|y,s) shape: (y, s)
