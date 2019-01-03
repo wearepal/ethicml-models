@@ -127,7 +127,7 @@ def main(args):
 
     # "Loss" for GPs - the marginal log likelihood
     # num_data refers to the amount of training data
-    mll = model.get_marginal_log_likelihood(likelihood, model, len(train_ds))
+    mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
 
     best_loss = np.inf
     start_epoch = 1
