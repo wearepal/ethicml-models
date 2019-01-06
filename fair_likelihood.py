@@ -6,7 +6,17 @@ from gpytorch.likelihoods import BernoulliLikelihood
 from gpytorch.functions import log_normal_cdf
 
 
-class TunePrLikelihood(BernoulliLikelihood):
+class BaselineLikelihood(BernoulliLikelihood):
+    """This is just the BernoulliLikelihood but it ignores the sensitive attributes in the labels"""
+    def __init__(self, _):
+        super().__init__()
+
+    def variational_log_probability(self, latent_func, labels):
+        target, _ = torch.unbind(labels, dim=-1)
+        return super().variational_log_probability(latent_func, target)
+
+
+class TunePrLikelihood(BaselineLikelihood):
     """Likelihood that allows tuning the positive rate of the predictions"""
     def __init__(self, flags):
         super().__init__()
@@ -25,8 +35,7 @@ class TunePrLikelihood(BernoulliLikelihood):
         target, sens_attr = torch.unbind(labels, dim=-1)
         target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
         if self.training:
-            sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1)
-            sens_attr = sens_attr.to(torch.int64)
+            sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1).to(torch.int64)
             # convert target to binary values (0 and 1)
             labels_bin = (0.5 * (target + 1)).to(torch.int64)
             log_lik_neg = log_normal_cdf(-latent_samples)
@@ -50,14 +59,10 @@ class TunePrLikelihood(BernoulliLikelihood):
         return debiasing_params_target_rate(self.flags)
 
 
-class BaselineLikelihood(BernoulliLikelihood):
-    """This is just the BernoulliLikelihood but it ignores the sensitive attributes in the labels"""
-    def __init__(self, _):
-        super().__init__()
-
-    def variational_log_probability(self, latent_func, labels):
-        target, _ = torch.unbind(labels, dim=-1)
-        return super().variational_log_probability(latent_func, target)
+class TuneTprLikelihood(TunePrLikelihood):
+    """Likelihood that allows tuning the true positive rate of the predictions"""
+    def _log_debiasing_parameters(self):
+        return debiasing_params_target_tpr(self.flags)
 
 
 def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
