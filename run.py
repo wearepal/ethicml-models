@@ -14,7 +14,7 @@ import gpytorch
 import fair_likelihood
 from flags import parse_arguments
 import gp_model
-from dataset import from_numpy
+import dataset
 import utils
 
 
@@ -93,45 +93,40 @@ def predict(model, likelihood, dataset, use_cuda):
     return pred_mean, pred_var
 
 
-def construct(flags, inducing_inputs, num_data):
+def construct(flags):
     """Construct GP object, likelihood and marginal log likelihood function from the flags
 
     Args:
         flags: settings object
-        inducing_inputs: a tensor with the inducing inputs
-        num_data: the amount of training data
     """
+    # We use the built-in function "getattr" to turn the flags into Python references
+    # Get dataset objects
+    train_ds, test_ds, inducing_inputs = getattr(dataset, flags.data)(flags)
+
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
 
     # Initialize model and likelihood
-    # We use the built-in function "getattr" to turn the flags into Python references
     model: gpytorch.models.GP = getattr(gp_model, flags.inf)(inducing_inputs, flags)
     likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
     if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 
     # "Loss" for GPs - the marginal log likelihood
-    mll = model.get_marginal_log_likelihood(likelihood, num_data)
+    mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
 
     # Initialize optimizer
     optimizer = getattr(torch.optim, flags.optimizer)(model.parameters(), lr=flags.lr)
-    return model, likelihood, mll, optimizer
+    return model, likelihood, mll, optimizer, train_ds, test_ds
 
 
 def main(flags):
-    # Toy data:
-    # train_x = torch.linspace(0, 1, 10)
-    # train_y = torch.sign(torch.cos(train_x * (4 * np.pi)))
-    # train_s = 0.5 * (torch.sign(torch.linspace(-1, 1, 10)) + 1)
-    # train_labels = torch.stack((train_y, train_s), dim=-1)
-    # Test x are regularly spaced by 0.01 0,1 inclusive
-    # test_x = torch.linspace(0, 1, 101)
-    # test_y = torch.sign(torch.cos(test_x * (4 * np.pi)))
-
-    # Load data
-    train_ds, test_ds, inducing_inputs = from_numpy(flags)
+    # Check if CUDA is available
+    flags.use_cuda = torch.cuda.is_available()
+    # Construct model and all other necessary objects
+    model, likelihood, mll, optimizer, train_ds, test_ds = construct(flags)
     print(f"Number of training samples: {len(train_ds)}")
+
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=flags.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_ds, batch_size=flags.batch_size)
 
@@ -141,11 +136,6 @@ def main(flags):
         save_dir.mkdir(parents=True, exist_ok=True)
     else:
         save_dir = Path(mkdtemp())  # Create temporary directory
-
-    # Check if CUDA is available
-    flags.use_cuda = torch.cuda.is_available()
-    # Construct model and all other necessary objects
-    model, likelihood, mll, optimizer = construct(flags, inducing_inputs, len(train_ds))
 
     best_loss = np.inf
     start_epoch = 1
@@ -161,7 +151,7 @@ def main(flags):
         start_epoch = checkpoint['epoch'] + 1
         best_loss = checkpoint['best_loss']
 
-    # Find optimal model hyperparameters
+    # Main training loop
     for i in range(flags.epochs):
         epoch = start_epoch + i
         print(f"Training on epoch {epoch}")

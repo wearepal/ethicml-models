@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from gpytorch import settings
-from gpytorch.likelihoods import BernoulliLikelihood
+from gpytorch.likelihoods import BernoulliLikelihood, GaussianLikelihood as GaussianBase
 from gpytorch.functions import log_normal_cdf
 
 
@@ -166,3 +166,10 @@ def debiasing_params_target_tpr(flags):
     # P(y'=1|y,s) shape: (y, s)
     positive_value = np.stack([false_omission_rate, positive_predictive_value], axis=0)
     return compute_label_posterior(positive_value, positive_prior)
+
+
+class GaussianLikelihood(GaussianBase):
+    """Gaussian likelihood"""
+    def __init__(self, flags):
+        # super().__init__(noise_prior=flags.sn)
+        super().__init__()

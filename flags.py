@@ -4,6 +4,7 @@ import random
 
 def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--data', default='sensitive_from_numpy', help='Dataset')
     parser.add_argument('--inf', default='Variational', help='Inference method')
     parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
     parser.add_argument('--lik', default='TunePrLikelihood', help='Likelihood function')
@@ -62,6 +63,8 @@ def parse_arguments(raw_args=None):
     # Likelihood
     parser.add_argument('--num_samples_pred', default=2000, type=int, metavar='N',
                         help='Number of samples for mean and variance estimate for prediction')
+    parser.add_argument('--sn', default=1.0, type=float,
+                        help='Initial standard dev for the Gaussian likelihood')
 
     # Fairness
     parser.add_argument('--biased_acceptance1', default=0.5, type=float, help='')

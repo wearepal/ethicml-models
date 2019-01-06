@@ -6,7 +6,7 @@ from torch.utils.data import TensorDataset
 import numpy as np
 
 
-def from_numpy(flags):
+def sensitive_from_numpy(flags):
     """Load all data from `dataset_path` and then construct a dataset
 
     You must specify a path to a numpy file in the flag `dataset_path`. This file must contain
@@ -88,3 +88,70 @@ def _fix_labels(labels):
         print("Fixing labels...")
         return 2 * labels - 1
     return labels
+
+
+def simple_multi_out(flags):
+    """Example with multi-dimensional output."""
+    n_all = 200
+    num_train = 50
+    num_inducing = min(num_train, flags.num_inducing)
+
+    inputs = np.linspace(0, 5, num=n_all)[:, np.newaxis]
+    output1 = np.cos(inputs)
+    output2 = np.sin(inputs)
+    outputs = np.concatenate((output1, output2), axis=1)
+
+    np.random.seed(4)
+    (xtrain, ytrain), (xtest, ytest) = select_training_and_test(num_train, inputs, outputs)
+
+    xtrain = torch.tensor(xtrain, dtype=torch.float32)
+    ytrain = torch.tensor(ytrain, dtype=torch.float32)
+    xtest = torch.tensor(xtest, dtype=torch.float32)
+    ytest = torch.tensor(ytest, dtype=torch.float32)
+    train_ds = TensorDataset(xtrain, ytrain)
+    test_ds = TensorDataset(xtest, ytest)
+    return train_ds, test_ds, xtrain[::num_train // num_inducing]
+
+
+def simple(flags):
+    """Simple 1D example with synthetic data."""
+    n_all = 200
+    num_train = 50
+    num_inducing = flags.num_inducing
+
+    inputs = np.linspace(0, 5, num=n_all)
+    outputs = np.cos(inputs)
+    inputs = inputs[:, np.newaxis]
+    np.random.seed(4)
+    (xtrain, ytrain), (xtest, ytest) = select_training_and_test(num_train, inputs, outputs)
+
+    xtrain = torch.tensor(xtrain, dtype=torch.float32)
+    ytrain = torch.tensor(ytrain, dtype=torch.float32)
+    xtest = torch.tensor(xtest, dtype=torch.float32)
+    ytest = torch.tensor(ytest, dtype=torch.float32)
+    train_ds = TensorDataset(xtrain, ytrain)
+    test_ds = TensorDataset(xtest, ytest)
+    return train_ds, test_ds, xtrain[::num_train // num_inducing]
+
+
+def select_training_and_test(num_train, *data_parts):
+    """Randomly devide a dataset into training and test
+    Args:
+        num_train: Desired number of examples in training set
+        *data_parts: Parts of the dataset. The * means that the function can take an arbitrary
+                     number of arguments.
+    Returns:
+        Two lists: data_parts_train, data_parts_test
+    """
+    idx = np.arange(data_parts[0].shape[0])
+    np.random.shuffle(idx)
+    train_idx = idx[:num_train]
+    test_idx = np.sort(idx[num_train:])
+
+    data_parts_train = []
+    data_parts_test = []
+    for data_part in data_parts:  # data_parts is a list of the arguments passed to the function
+        data_parts_train.append(data_part[train_idx])
+        data_parts_test.append(data_part[test_idx])
+
+    return data_parts_train, data_parts_test

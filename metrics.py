@@ -26,21 +26,6 @@ class Metric:
         pass
 
 
-class Rmse(Metric):
-    """Root mean squared error"""
-    name = "RMSE"
-
-    def __init__(self):
-        super().__init__()
-        self.metric = AverageValueMeter()
-
-    def update(self, inputs, labels, pred_mean):
-        self.metric.add((pred_mean - labels)**2)
-
-    def result(self):
-        return np.sqrt(self.metric.mean)
-
-
 class Mae(Metric):
     """Mean absolute error"""
     name = "MAE"
@@ -60,6 +45,17 @@ class Mae(Metric):
 
     def result(self):
         return self.sum / self.num
+
+
+class Rmse(Mae):
+    """Root mean squared error"""
+    name = "RMSE"
+
+    def update(self, inputs, labels, pred_mean):
+        self._add((pred_mean - labels)**2)
+
+    def result(self):
+        return np.sqrt(self.sum / self.num)
 
 
 class ClassAccuracy(Mae):
