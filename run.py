@@ -113,7 +113,7 @@ def construct(flags):
     if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 
-    # "Loss" for GPs - the marginal log likelihood
+    # "Loss" for the GP model: the marginal log likelihood
     mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
 
     # Initialize optimizer

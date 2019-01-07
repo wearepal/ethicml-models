@@ -2,7 +2,6 @@
 
 import numpy as np
 import torch
-from torchnet.meter import AverageValueMeter, ClassErrorMeter
 
 
 class Metric:
