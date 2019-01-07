@@ -42,6 +42,7 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
                           label='95% CI')
     fig.legend(loc='lower left')
     fig.show()
+    input("Press Enter to continue...")
 
 
 def dataset2numpy(dataset):
