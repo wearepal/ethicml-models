@@ -7,7 +7,6 @@ import shutil
 import torch
 from torchnet.meter import AverageValueMeter
 import numpy as np
-# from matplotlib import pyplot as plt
 
 import gpytorch
 
@@ -16,6 +15,7 @@ from flags import parse_arguments
 import gp_model
 import dataset
 import utils
+import plot
 
 
 def train(model, optimizer, dataset, mll, step_counter, flags):
@@ -179,13 +179,13 @@ def main(flags):
             save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet,
                             save_dir)
 
-    # save predictions for the test set if the preds_path flag is set
-    if flags.preds_path:
+    # if predictions are to be save or to be plotted, then make predictions on the test set
+    if flags.preds_path or flags.plot:
         print("Making predictions...")
         pred_mean, pred_var = predict(model, likelihood, test_loader, flags.use_cuda)
-        working_dir = save_dir if flags.save_dir else Path(".")
-        np.savez_compressed(working_dir / flags.preds_path, pred_mean=pred_mean, pred_var=pred_var)
-        print(f"Saved in \"{str(working_dir / flags.preds_path)}\"")
+        utils.save_predictions(pred_mean, pred_var, save_dir, flags)
+        if flags.plot:
+            getattr(plot, flags.plot)(pred_mean, pred_var, train_ds, test_ds)
 
 
 def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):

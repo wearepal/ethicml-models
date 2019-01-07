@@ -1,3 +1,6 @@
+from pathlib import Path
+import numpy as np
+
 import metrics as metrics_module
 
 
@@ -51,7 +54,7 @@ def update_metrics(metrics, inputs, labels, pred_mean):
 
 
 def record_metrics(metrics, summary_writer=None, step_counter=None):
-    """Print the result or record it in the summary
+    """Print the result and record it in the summary if a summary writer is given
 
     Args:
         metrics: a dictionary with the updated metrics
@@ -61,3 +64,11 @@ def record_metrics(metrics, summary_writer=None, step_counter=None):
         print(f"{metric.name}: {result}")
         if summary_writer is not None and step_counter is not None:
             summary_writer.add_scalar(metric.name, result, step_counter)
+
+
+def save_predictions(pred_mean, pred_var, save_dir, flags):
+    """Save predictions into a numpy file"""
+    if flags.preds_path:
+        working_dir = save_dir if flags.save_dir else Path(".")
+        np.savez_compressed(working_dir / flags.preds_path, pred_mean=pred_mean, pred_var=pred_var)
+        print(f"Saved in \"{str(working_dir / flags.preds_path)}\"")
