@@ -13,7 +13,7 @@ import gpytorch
 import fair_likelihood
 from flags import parse_arguments
 import gp_model
-import dataset
+import datasets
 import utils
 import plot
 
@@ -101,7 +101,7 @@ def construct(flags):
     """
     # We use the built-in function "getattr" to turn the flags into Python references
     # Get dataset objects
-    train_ds, test_ds, inducing_inputs = getattr(dataset, flags.data)(flags)
+    train_ds, test_ds, inducing_inputs = getattr(datasets, flags.data)(flags)
 
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
