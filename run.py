@@ -106,9 +106,10 @@ def construct(flags):
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
 
-    # Initialize model and likelihood
-    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(inducing_inputs, flags)
+    # Initialize likelihood and model
     likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
+    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(
+        train_ds, inducing_inputs, likelihood, flags)
     if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 
@@ -116,7 +117,8 @@ def construct(flags):
     mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
 
     # Initialize optimizer
-    optimizer = getattr(torch.optim, flags.optimizer)(model.parameters(), lr=flags.lr)
+    optimizer = getattr(torch.optim, flags.optimizer)(
+        list(model.parameters()) + list(likelihood.parameters()), lr=flags.lr)
     return model, likelihood, mll, optimizer, train_ds, test_ds
 
 
@@ -127,7 +129,8 @@ def main(flags):
     model, likelihood, mll, optimizer, train_ds, test_ds = construct(flags)
     print(f"Number of training samples: {len(train_ds)}")
 
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=flags.batch_size, shuffle=True)
+    shuff = (len(train_ds) != flags.batch_size)  # don't shuffle if each batch equals the dataset
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=flags.batch_size, shuffle=shuff)
     test_loader = torch.utils.data.DataLoader(test_ds, batch_size=flags.batch_size)
 
     # Set checkpoint path

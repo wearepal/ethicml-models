@@ -1,5 +1,6 @@
 from pathlib import Path
 import numpy as np
+import torch
 
 import metrics as metrics_module
 
@@ -87,3 +88,9 @@ def dataset2numpy(dataset):
     if len(labels.shape) == 1:
         labels = labels[:, np.newaxis]
     return features, labels
+
+
+def dataset2tensor(dataset):
+    """Convert PyTorch dataset to tensors"""
+    features, labels = dataset2numpy(dataset)
+    return torch.tensor(features, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
