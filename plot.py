@@ -2,6 +2,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
+from utils import dataset2numpy
+
 
 def simple_1d(pred_mean, pred_var, train_ds, test_ds, in_dim=0):
     """Plot train and test data and predicted data with uncertainty."""
@@ -43,18 +45,3 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
     fig.legend(loc='lower left')
     fig.show()
     input("Press Enter to continue...")
-
-
-def dataset2numpy(dataset):
-    """Convert PyTorch dataset to numpy arrays"""
-    features = []
-    labels = []
-    for feature, label in dataset:
-        features.append(np.atleast_1d(feature.numpy()))
-        labels.append(np.atleast_1d(label.numpy()))
-    features, labels = np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
-    if len(features.shape) == 1:
-        features = features[:, np.newaxis]
-    if len(labels.shape) == 1:
-        labels = labels[:, np.newaxis]
-    return features, labels

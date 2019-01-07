@@ -72,3 +72,18 @@ def save_predictions(pred_mean, pred_var, save_dir, flags):
         working_dir = save_dir if flags.save_dir else Path(".")
         np.savez_compressed(working_dir / flags.preds_path, pred_mean=pred_mean, pred_var=pred_var)
         print(f"Saved in \"{str(working_dir / flags.preds_path)}\"")
+
+
+def dataset2numpy(dataset):
+    """Convert PyTorch dataset to numpy arrays"""
+    features = []
+    labels = []
+    for feature, label in dataset:
+        features.append(np.atleast_1d(feature.numpy()))
+        labels.append(np.atleast_1d(label.numpy()))
+    features, labels = np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
+    if len(features.shape) == 1:
+        features = features[:, np.newaxis]
+    if len(labels.shape) == 1:
+        labels = labels[:, np.newaxis]
+    return features, labels
