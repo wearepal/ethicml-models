@@ -166,20 +166,18 @@ def main(flags):
             val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
             is_best_loss_yet = val_loss < best_loss
             best_loss = min(val_loss, best_loss)
-        else:
-            # we don't know if the loss is better so we'll assume it's not to be on the safe side
-            is_best_loss_yet = False
 
-        # Save checkpoint
-        checkpoint = {
-            'model': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'likelihood': likelihood.state_dict(),
-            'mll': mll.state_dict(),
-            'epoch': epoch,
-            'best_loss': best_loss,
-        }
-        save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet, save_dir)
+            # Save checkpoint
+            checkpoint = {
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'likelihood': likelihood.state_dict(),
+                'mll': mll.state_dict(),
+                'epoch': epoch,
+                'best_loss': best_loss,
+            }
+            save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet,
+                            save_dir)
 
     # save predictions for the test set if the preds_path flag is set
     if flags.preds_path:
