@@ -19,7 +19,7 @@ class BaselineLikelihood(BernoulliLikelihood):
 class TunePrLikelihood(BaselineLikelihood):
     """Likelihood that allows tuning the positive rate of the predictions"""
     def __init__(self, flags):
-        super().__init__()
+        super().__init__(flags)
         self.flags = flags
 
     def variational_log_probability(self, latent_func, labels):
