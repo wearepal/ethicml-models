@@ -10,6 +10,7 @@ class Variational(AbstractVariationalGP):
     """GP using variational inference"""
     def __init__(self, inducing_inputs, kernel, flags, **kwargs):
         num_inducing = inducing_inputs.shape[0]
+        print(f"num inducing from shape: {num_inducing}")
         # define the variational distribution with the length of the inducing inputs
         variational_distribution = CholeskyVariationalDistribution(num_inducing)
 

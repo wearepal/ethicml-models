@@ -40,8 +40,6 @@ def parse_arguments(raw_args=None):
                         help='Which GPUs to use (should normally only be one)')
     parser.add_argument('--preds_path', default='',
                         help='Path where the predictions for the test data will be save (or "")')
-    parser.add_argument('--eval_throttle', default=600, type=int, metavar='N',
-                        help='How long to wait before evaluating in seconds')
     parser.add_argument('--lr_drop_steps', default=0, type=int, metavar='N',
                         help='Number of steps before doing a learning rate drop')
     parser.add_argument('--lr_drop_factor', default=0.2, type=float,

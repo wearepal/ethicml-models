@@ -38,10 +38,14 @@ def train(model, optimizer, dataset, mll, step_counter, flags):
 
         if flags.logging_steps != 0 and batch_num % flags.logging_steps == 0:
             print(f"Step #{step_counter + batch_num} ({time.time() - start:.4f} sec)\t", end=' ')
-            print(f"loss: {loss.item():.3f}", end=' ')
+            print(
+                f"loss: {loss.item():.3f}"
+                f" log_lengthscale:"
+                f" {model.covar_module.base_kernel.log_lengthscale.detach().cpu().numpy()}"
+                # f"log_noise: {model.likelihood.log_noise.item()}"
+            )
             # for loss_name, loss_value in obj_func.items():
             #     print(f"{loss_name}: {loss_value:.2f}", end=' ')
-            print("")  # newline
             start = time.time()
 
 
@@ -132,7 +136,7 @@ def construct(flags):
     return model, likelihood, mll, optimizer, train_ds, test_ds
 
 
-def main(flags):
+def main_loop(flags):
     # Check if CUDA is available
     flags.use_cuda = torch.cuda.is_available()
     # Construct model and all other necessary objects
@@ -212,4 +216,4 @@ def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):
 
 
 if __name__ == "__main__":
-    main(parse_arguments())
+    main_loop(parse_arguments())
