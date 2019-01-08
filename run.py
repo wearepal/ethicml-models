@@ -9,6 +9,7 @@ from torchnet.meter import AverageValueMeter
 import numpy as np
 
 import gpytorch
+from gpytorch import settings
 
 import fair_likelihood
 from flags import parse_arguments
@@ -31,8 +32,7 @@ def train(model, optimizer, dataset, mll, step_counter, flags):
         # Get predictive output
         output = model(inputs)
         # Calc loss and backprop gradients
-        with gpytorch.settings.num_likelihood_samples(flags.num_samples):
-            loss = -mll(output, labels)
+        loss = -mll(output, labels)
         loss.backward()
         optimizer.step()
 
@@ -174,7 +174,9 @@ def main_loop(flags):
         print(f"Training on epoch {epoch}")
         start = time.time()
         step_counter = (epoch - 1) * len(train_loader)
-        train(model, optimizer, train_loader, mll, step_counter, flags)
+        with settings.use_toeplitz(not flags.use_cuda),\
+                settings.num_likelihood_samples(flags.num_samples):
+            train(model, optimizer, train_loader, mll, step_counter, flags)
         end = time.time()
         print(f"Train time for epochs {epoch} (global step {step_counter}):"
               f" {end - start:0.2f}s")
