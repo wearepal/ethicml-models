@@ -100,15 +100,20 @@ def construct(flags):
         flags: settings object
     """
     # We use the built-in function "getattr" to turn the flags into Python references
+    data_func = getattr(datasets, flags.data)
+    Likelihood = getattr(fair_likelihood, flags.lik)
+    GPModel = getattr(gp_model, flags.inf)
+    Optimizer = getattr(torch.optim, flags.optimizer)
+
     # Get dataset objects
-    train_ds, test_ds, inducing_inputs = getattr(datasets, flags.data)(flags)
+    train_ds, test_ds, inducing_inputs = data_func(flags)
 
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
 
     # Initialize likelihood and model
-    likelihood: gpytorch.likelihoods.Likelihood = getattr(fair_likelihood, flags.lik)(flags)
-    model: gpytorch.models.GP = getattr(gp_model, flags.inf)(
+    likelihood: gpytorch.likelihoods.Likelihood = Likelihood(flags)
+    model: gpytorch.models.GP = GPModel(
         train_ds, inducing_inputs, likelihood, flags)
     if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
@@ -117,7 +122,7 @@ def construct(flags):
     mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
 
     # Initialize optimizer
-    optimizer = getattr(torch.optim, flags.optimizer)(
+    optimizer: torch.optim.Optimizer = Optimizer(
         list(model.parameters()) + list(likelihood.parameters()), lr=flags.lr)
     return model, likelihood, mll, optimizer, train_ds, test_ds
 
