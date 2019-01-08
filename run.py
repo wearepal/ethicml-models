@@ -102,19 +102,24 @@ def construct(flags):
     # We use the built-in function "getattr" to turn the flags into Python references
     data_func = getattr(datasets, flags.data)
     Likelihood = getattr(fair_likelihood, flags.lik)
+    Kernel = getattr(gpytorch.kernels, flags.cov)
     GPModel = getattr(gp_model, flags.inf)
     Optimizer = getattr(torch.optim, flags.optimizer)
 
     # Get dataset objects
     train_ds, test_ds, inducing_inputs = data_func(flags)
+    input_dim = inducing_inputs.shape[1]
 
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
 
-    # Initialize likelihood and model
+    # Initialize likelihood, kernel and model
     likelihood: gpytorch.likelihoods.Likelihood = Likelihood(flags)
-    model: gpytorch.models.GP = GPModel(
-        train_ds, inducing_inputs, likelihood, flags)
+    # TODO: figure out how to specify initial values for the kernel parameters
+    kernel_unscaled: gpytorch.kernels.Kernel = Kernel(ard_num_dims=None if flags.iso else input_dim)
+    kernel = gpytorch.kernels.ScaleKernel(kernel_unscaled)
+    model: gpytorch.models.GP = GPModel(train_ds=train_ds, inducing_inputs=inducing_inputs,
+                                        likelihood=likelihood, kernel=kernel, flags=flags)
     if flags.use_cuda:
         model, likelihood = model.cuda(), likelihood.cuda()
 

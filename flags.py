@@ -67,6 +67,14 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--sn', default=1.0, type=float,
                         help='Initial standard dev for the Gaussian likelihood')
 
+    # Kernel
+    parser.add_argument('--length_scale', default=1.0, type=float,
+                        help='Initial length scale for the kernel')
+    parser.add_argument('--sf', default=1.0, type=float,
+                        help='Initial standard dev for the kernel')
+    parser.add_argument('--iso', default=False, type=str2bool,
+                        help='True to use isotropic kernel otherwise use automatic relevance det')
+
     # Fairness
     parser.add_argument('--biased_acceptance1', default=0.5, type=float, help='')
     parser.add_argument('--biased_acceptance2', default=0.5, type=float, help='')
