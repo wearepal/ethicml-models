@@ -4,10 +4,8 @@ import random
 
 def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
+    # Training flags
     parser.add_argument('--data', default='sensitive_from_numpy', help='Dataset')
-    parser.add_argument('--inf', default='Variational', help='Inference method')
-    parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
-    parser.add_argument('--lik', default='TunePrLikelihood', help='Likelihood function')
     parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
     parser.add_argument('--metrics', default='binary_accuracy', help='List of metrics to log')
     parser.add_argument('--loo_steps', default=0, type=int, metavar='N',
@@ -46,6 +44,12 @@ def parse_arguments(raw_args=None):
                         help='For learning rate drop multiply by this factor')
     parser.add_argument('--manual_seed', type=int, metavar='N',
                         help='manual seed, if not given resorts to random seed.')
+
+    # Gaussian Process model
+    parser.add_argument('--inf', default='Variational', help='Inference method')
+    parser.add_argument('--cov', default='RBFKernel', help='Covariance function')
+    parser.add_argument('--mean', default='ZeroMean', help='Mean for the Gaussian Process')
+    parser.add_argument('--lik', default='TunePrLikelihood', help='Likelihood function')
 
     # Variational inference
     parser.add_argument('--num_components', default=1, type=int, metavar='N',

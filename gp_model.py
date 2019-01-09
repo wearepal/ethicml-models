@@ -20,7 +20,8 @@ class Variational(AbstractVariationalGP):
                                                    learn_inducing_locations=flags.optimize_inducing)
         super().__init__(variational_strategy)
         # initialize mean and covariance
-        self.mean_module = gpytorch.means.ConstantMean()
+        # self.mean_module = gpytorch.means.ConstantMean()
+        self.mean_module = getattr(gpytorch.means, flags.mean)()
         self.covar_module = kernel
 
     def forward(self, x):
