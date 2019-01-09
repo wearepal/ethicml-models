@@ -40,8 +40,8 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
             print(f"Step #{step} ({time.time() - start:.4f} sec)\t", end=' ')
             print(
                 f"loss: {loss.item():.3f}"
-                f" log_lengthscale:"
-                f" {model.covar_module.base_kernel.log_lengthscale.detach().cpu().numpy()}"
+                # f" log_lengthscale:"
+                # f" {model.covar_module.base_kernel.log_lengthscale.detach().cpu().numpy()}"
                 # f"log_noise: {model.likelihood.log_noise.item()}"
             )
             # for loss_name, loss_value in obj_func.items():
