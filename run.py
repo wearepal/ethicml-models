@@ -19,12 +19,12 @@ import utils
 import plot
 
 
-def train(model, optimizer, dataset, mll, step_counter, flags):
+def train(model, optimizer, dataset, mll, previous_steps, flags):
     """Train for one epoch"""
     start = time.time()
     model.train()
     mll.likelihood.train()
-    for (batch_num, (inputs, labels)) in enumerate(dataset):
+    for (step, (inputs, labels)) in enumerate(dataset, start=previous_steps + 1):
         if flags.use_cuda:
             inputs, labels = inputs.cuda(), labels.cuda()
         # Zero backpropped gradients from previous iteration
@@ -36,8 +36,8 @@ def train(model, optimizer, dataset, mll, step_counter, flags):
         loss.backward()
         optimizer.step()
 
-        if flags.logging_steps != 0 and batch_num % flags.logging_steps == 0:
-            print(f"Step #{step_counter + batch_num} ({time.time() - start:.4f} sec)\t", end=' ')
+        if flags.logging_steps != 0 and (step - 1) % flags.logging_steps == 0:
+            print(f"Step #{step} ({time.time() - start:.4f} sec)\t", end=' ')
             print(
                 f"loss: {loss.item():.3f}"
                 f" log_lengthscale:"
@@ -169,8 +169,7 @@ def main_loop(flags):
         best_loss = checkpoint['best_loss']
 
     # Main training loop
-    for i in range(flags.epochs):
-        epoch = start_epoch + i
+    for epoch in range(start_epoch, start_epoch + flags.epochs):
         print(f"Training on epoch {epoch}")
         start = time.time()
         step_counter = (epoch - 1) * len(train_loader)
@@ -216,9 +215,10 @@ def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):
     model_filename = save_dir / filename
     torch.save(checkpoint, model_filename)
     best_filename = save_dir / 'model_best.pth.tar'
+    print(f"===> Saved checkpoint '{model_filename}'")
     if is_best_loss_yet:
         shutil.copyfile(model_filename, best_filename)
-    print(f"===> Saved checkpoint '{model_filename}'")
+        print(f"Best loss yet. Saved in '{best_filename}'")
 
 
 if __name__ == "__main__":
