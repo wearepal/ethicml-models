@@ -26,6 +26,10 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
     for (step, (inputs, labels)) in enumerate(dataset, start=previous_steps + 1):
         if flags.use_cuda:
             inputs, labels = inputs.cuda(), labels.cuda()
+        print(
+            f" lengthscale:"
+            f" {model.covar_module.base_kernel.log_lengthscale.detach().exp().cpu().numpy()}"
+        )
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
         # Get predictive output
@@ -167,6 +171,7 @@ def main_loop(flags):
         start_epoch = checkpoint['epoch'] + 1
         best_loss = checkpoint['best_loss']
 
+    print(f"Training for {flags.epochs} epochs")
     # Main training loop
     for epoch in range(start_epoch, start_epoch + flags.epochs):
         print(f"Training on epoch {epoch}")
@@ -180,8 +185,7 @@ def main_loop(flags):
             # settings.max_preconditioner_size(10),\
             train(model, optimizer, train_loader, mll, step_counter, flags)
         end = time.time()
-        print(f"Train time for epochs {epoch} (global step {step_counter}):"
-              f" {end - start:0.2f}s")
+        print(f"Train time for epoch {epoch}: {end - start:0.2f}s")
         if epoch % flags.eval_epochs == 0:
             # do evaluation and update the best loss
             val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
