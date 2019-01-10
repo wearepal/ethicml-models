@@ -1,4 +1,7 @@
 """Definitions of GP models"""
+import numpy as np
+import torch
+
 import gpytorch
 from gpytorch.models import AbstractVariationalGP, ExactGP
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
@@ -22,6 +25,12 @@ class Variational(AbstractVariationalGP):
         # initialize mean and covariance
         # self.mean_module = gpytorch.means.ConstantMean()
         self.mean_module = getattr(gpytorch.means, flags.mean)()
+        lengthscale_transf, inv_lengthscale_transf = get_lengthscale_transforms(flags.length_scale)
+        kernel_unscaled = gpytorch.kernels.RBFKernel(
+            ard_num_dims=None if flags.iso else inducing_inputs.shape[1],
+            param_transform=lengthscale_transf,
+            inv_param_transform=inv_lengthscale_transf)
+        kernel = gpytorch.kernels.ScaleKernel(kernel_unscaled)
         self.covar_module = kernel
 
     def forward(self, x):
@@ -73,3 +82,17 @@ class ExactMultitask(ExactGP):
     def get_marginal_log_likelihood(self, likelihood, _):
         """Get the marginal log likelihood function that works with the GP model"""
         return gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, self)
+
+
+
+def get_lengthscale_transforms(initial_value):
+    offset = torch.tensor(np.log(np.exp(initial_value) - 1), dtype=torch.float32)
+
+    # @torch.jit.script
+    def _lengthscale_transform(raw_lengthscale):
+        return torch.nn.functional.softplus(raw_lengthscale + offset)
+
+    # @torch.jit.script
+    def _inv_lengthscale_transform(lengthscale):
+        return lengthscale.exp().sub(1).log().sub(offset)
+    return _lengthscale_transform, _inv_lengthscale_transform
