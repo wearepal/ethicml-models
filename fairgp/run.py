@@ -178,9 +178,10 @@ def main_loop(flags):
         start = time.time()
         step_counter = (epoch - 1) * len(train_loader)
         with settings.use_toeplitz(not flags.use_cuda),\
-                settings.fast_computations(covar_root_decomposition=False),\
                 settings.num_likelihood_samples(flags.num_samples):
+            # settings.fast_computations(covar_root_decomposition=False),\
             # settings.lazily_evaluate_kernels(state=False),\
+            # settings.tridiagonal_jitter(1e-2),\
             # settings.max_cholesky_numel(4096),\
             # settings.max_preconditioner_size(10),\
             train(model, optimizer, train_loader, mll, step_counter, flags)
