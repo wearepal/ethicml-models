@@ -1,10 +1,11 @@
 import numpy as np
 
-from fair_likelihood import (debiasing_params_target_rate, positive_label_likelihood,
-                             debiasing_params_target_tpr)
+from fairgp.fair_likelihood import (debiasing_params_target_rate, positive_label_likelihood,
+                                    debiasing_params_target_tpr)
 
 
 RTOL = 1e-4
+ATOL = 1e-10
 
 
 class Namespace:
@@ -42,8 +43,8 @@ def invert(probs):
 
 
 def construct(*, p_y0_ybar0_s0, p_y1_ybar1_s0, p_y0_ybar0_s1, p_y1_ybar1_s1):
-    return invert([[1 - p_y0_ybar0_s0, p_y1_ybar1_s0],
-                   [1 - p_y0_ybar0_s1, p_y1_ybar1_s1]])
+    return np.log(invert([[1 - p_y0_ybar0_s0, p_y1_ybar1_s0],
+                          [1 - p_y0_ybar0_s1, p_y1_ybar1_s1]]))
 
 
 class TestDebiasParams:
@@ -72,7 +73,7 @@ class TestDebiasParams:
                             p_y1_ybar1_s0=.3 / .5,
                             p_y0_ybar0_s1=1 - (.7 - .5) / .5,
                             p_y1_ybar1_s1=1.)
-        np.testing.assert_allclose(actual, correct, RTOL)
+        np.testing.assert_allclose(actual, correct, RTOL, ATOL)
 
     @staticmethod
     def test_precision_target():
