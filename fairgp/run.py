@@ -15,8 +15,7 @@ import fair_likelihood
 from flags import parse_arguments
 import gp_model
 import datasets
-import utils
-import plot
+from utils import utils, plot
 
 
 def train(model, optimizer, dataset, mll, previous_steps, flags):

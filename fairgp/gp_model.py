@@ -3,7 +3,7 @@ import gpytorch
 from gpytorch.models import AbstractVariationalGP, ExactGP
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
 
-import utils
+from utils import utils
 
 
 class Variational(AbstractVariationalGP):

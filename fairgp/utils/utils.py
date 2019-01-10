@@ -2,7 +2,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-import metrics as metrics_module
+from . import metrics as metrics_module
 
 
 def init_metrics(metric_flag):

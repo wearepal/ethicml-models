@@ -2,7 +2,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from utils import dataset2numpy
+from .utils import dataset2numpy
 
 
 def simple_1d(pred_mean, pred_var, train_ds, test_ds, in_dim=0):
