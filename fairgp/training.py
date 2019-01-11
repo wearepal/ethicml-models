@@ -11,11 +11,9 @@ import numpy as np
 import gpytorch
 from gpytorch import settings
 
-import fair_likelihood
-from flags import parse_arguments
-import gp_model
-import datasets
-from utils import utils, plot
+from . import fair_likelihood, gp_model, datasets
+from .flags import parse_arguments
+from .utils import utils, plot
 
 
 def train(model, optimizer, dataset, mll, previous_steps, flags):
