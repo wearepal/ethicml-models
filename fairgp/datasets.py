@@ -90,7 +90,7 @@ def _fix_labels(labels):
     return labels
 
 
-def simple_multi_out(flags):
+def toy_data_1d_multitask(flags):
     """Example with multi-dimensional output."""
     n_all = 200
     num_train = 50
@@ -113,7 +113,7 @@ def simple_multi_out(flags):
     return train_ds, test_ds, xtrain[::num_train // num_inducing]
 
 
-def simple(flags):
+def toy_data_1d(flags):
     """Simple 1D example with synthetic data."""
     n_all = 200
     num_train = 50
