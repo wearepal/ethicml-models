@@ -6,7 +6,7 @@ def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
     # Training flags
     parser.add_argument('--data', default='sensitive_from_numpy', help='Dataset')
-    parser.add_argument('--lr', default=0.1, type=float, help='Learning rate')
+    parser.add_argument('--lr', default=0.01, type=float, help='Learning rate')
     parser.add_argument('--metrics', default='binary_accuracy', help='List of metrics to log')
     parser.add_argument('--loo_steps', default=0, type=int, metavar='N',
                         help='Number of steps for optimizing LOO loss; 0 disables')
@@ -16,13 +16,13 @@ def parse_arguments(raw_args=None):
                         help='Suggested total number of examples (datasets don\'t have to use it)')
     parser.add_argument('--num_train', default=50, type=int, metavar='N',
                         help='Suggested number of train examples (datasets don\'t have to use it)')
-    parser.add_argument('--num_inducing', default=10, type=int, metavar='N',
+    parser.add_argument('--num_inducing', default=1000, type=int, metavar='N',
                         help='Suggested number of inducing inputs (datasets don\'t have to use it)')
     parser.add_argument('--optimizer', default='Adam', help='Optimizer to use for SGD')
     parser.add_argument('--model_name', default='local',
                         help='Name of model (used for name of checkpoints)')
-    parser.add_argument('--batch_size', default=500, type=int, metavar='N', help='Batch size')
-    parser.add_argument('--epochs', default=50, type=int, help='Number of epochs for training')
+    parser.add_argument('--batch_size', default=1000, type=int, metavar='N', help='Batch size')
+    parser.add_argument('--epochs', default=30, type=int, help='Number of epochs for training')
     parser.add_argument('--eval_epochs', default=1, type=int, metavar='N',
                         help='Number of epochs between evaluations')
     parser.add_argument('--summary_steps', default=100, type=int, metavar='N',
@@ -32,7 +32,7 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--save_dir', default='',
                         help='Directory where the checkpoints and summaries are saved (or \'\')')
     parser.add_argument('--plot', default='', help='Which function to use for plotting (or \'\')')
-    parser.add_argument('--logging_steps', default=10, type=int, metavar='N',
+    parser.add_argument('--logging_steps', default=1, type=int, metavar='N',
                         help='How many steps between logging the loss')
     parser.add_argument('--gpus', default='0',
                         help='Which GPUs to use (should normally only be one)')

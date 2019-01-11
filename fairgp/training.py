@@ -23,10 +23,10 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
     for (step, (inputs, labels)) in enumerate(dataset, start=previous_steps + 1):
         if flags.use_cuda:
             inputs, labels = inputs.cuda(), labels.cuda()
-        print(
-            f" lengthscale:"
-            f" {model.covar_module.base_kernel.log_lengthscale.detach().exp().cpu().numpy()}"
-        )
+        # print(
+        #     f" lengthscale:"
+        #     f" {model.covar_module.base_kernel.log_lengthscale.detach().exp().cpu().numpy()}"
+        # )
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
         # Get predictive output
