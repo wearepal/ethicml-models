@@ -2,7 +2,6 @@
 import time
 from pathlib import Path
 from tempfile import mkdtemp
-import shutil
 
 import torch
 from torchnet.meter import AverageValueMeter
@@ -161,13 +160,8 @@ def main_loop(flags):
     # Restore from checkpoint if one exists
     best_checkpoint = save_dir / 'model_best.pth.tar'
     if best_checkpoint.is_file():
-        checkpoint = torch.load(str(best_checkpoint))
-        model.load_state_dict(checkpoint['model'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        likelihood.load_state_dict(checkpoint['likelihood'])
-        mll.load_state_dict(checkpoint['mll'])
-        start_epoch = checkpoint['epoch'] + 1
-        best_loss = checkpoint['best_loss']
+        start_epoch, best_loss = utils.load_checkpoint(best_checkpoint, model, likelihood,
+                                                       mll, optimizer)
 
     print(f"Training for {flags.epochs} epochs")
     # Main training loop
@@ -190,37 +184,24 @@ def main_loop(flags):
             val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
             is_best_loss_yet = val_loss < best_loss
             best_loss = min(val_loss, best_loss)
+            if is_best_loss_yet:
+                print(f"Best loss yet. Will be saved in '{best_checkpoint}'")
 
             # Save checkpoint
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'likelihood': likelihood.state_dict(),
-                'mll': mll.state_dict(),
-                'epoch': epoch,
-                'best_loss': best_loss,
-            }
-            save_checkpoint(checkpoint, f'checkpoint_{epoch:04d}.pth.tar', is_best_loss_yet,
-                            save_dir)
+            chkpt_filename = f'checkpoint_{epoch:04d}.pth.tar'
+            print(f"===> Saving checkpoint '{chkpt_filename}' in '{save_dir}'")
+            utils.save_checkpoint(chkpt_filename, save_dir, is_best_loss_yet, model, likelihood,
+                                  mll, optimizer, epoch, best_loss)
 
     # if predictions are to be save or to be plotted, then make predictions on the test set
     if flags.preds_path or flags.plot:
+        print("Loading best model...")
+        utils.load_checkpoint(best_checkpoint, model, likelihood)
         print("Making predictions...")
         pred_mean, pred_var = predict(model, likelihood, test_loader, flags.use_cuda)
         utils.save_predictions(pred_mean, pred_var, save_dir, flags)
         if flags.plot:
             getattr(plot, flags.plot)(pred_mean, pred_var, train_ds, test_ds)
-
-
-def save_checkpoint(checkpoint, filename, is_best_loss_yet, save_dir):
-    print(f"===> Saving checkpoint '{filename}'")
-    model_filename = save_dir / filename
-    torch.save(checkpoint, model_filename)
-    best_filename = save_dir / 'model_best.pth.tar'
-    print(f"===> Saved checkpoint '{model_filename}'")
-    if is_best_loss_yet:
-        shutil.copyfile(model_filename, best_filename)
-        print(f"Best loss yet. Saved in '{best_filename}'")
 
 
 if __name__ == "__main__":

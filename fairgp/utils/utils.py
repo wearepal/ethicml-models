@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import numpy as np
 import torch
 
@@ -94,3 +95,35 @@ def dataset2tensor(dataset):
     """Convert PyTorch dataset to tensors"""
     features, labels = dataset2numpy(dataset)
     return torch.tensor(features, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+
+
+def save_checkpoint(filename, save_dir, is_best_loss_yet, model, likelihood, mll, optimizer,
+                    epoch, best_loss):
+    """Save checkpoint"""
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'likelihood': likelihood.state_dict(),
+        'mll': mll.state_dict(),
+        'epoch': epoch,
+        'best_loss': best_loss,
+    }
+    model_filename = save_dir / filename
+    torch.save(checkpoint, model_filename)
+    best_filename = save_dir / 'model_best.pth.tar'
+    if is_best_loss_yet:
+        shutil.copyfile(model_filename, best_filename)
+
+
+def load_checkpoint(checkpoint_path, model, likelihood, mll=None, optimizer=None):
+    """Load checkpoint"""
+    checkpoint = torch.load(str(checkpoint_path))
+    model.load_state_dict(checkpoint['model'])
+    likelihood.load_state_dict(checkpoint['likelihood'])
+    if mll is not None:
+        mll.load_state_dict(checkpoint['mll'])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint['optimizer'])
+    start_epoch = checkpoint['epoch'] + 1
+    best_loss = checkpoint['best_loss']
+    return start_epoch, best_loss
