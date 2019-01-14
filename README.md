@@ -31,8 +31,8 @@ python3 run.py --help
 ## Structure of the code
 
 * `run.py` simply calls `main_loop()` in `fairgp/training.py`
-* `tests` contains tests that can be run with `python3 -m pytest tests/`
-* `fairgp` contains the main code
+* `tests/` contains tests that can be run with `python3 -m pytest tests/`
+* `fairgp/` contains the main code
   - `dataset.py`: loads data from a numpy file and does some pre-processing;
     also defines some toy datasets
   - `fair_likelihood.py`: defines a likelihood function that can enforce fairness
