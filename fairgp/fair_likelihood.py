@@ -8,8 +8,9 @@ from gpytorch.functions import log_normal_cdf
 
 class BaselineLikelihood(BernoulliLikelihood):
     """This is just the BernoulliLikelihood but it ignores the sensitive attributes in the labels"""
-    def __init__(self, _):
+    def __init__(self, flags):
         super().__init__()
+        self.flags = flags
 
     def variational_log_probability(self, latent_func, labels):
         target, _ = torch.unbind(labels, dim=-1)
@@ -20,7 +21,7 @@ class TunePrLikelihood(BaselineLikelihood):
     """Likelihood that allows tuning the positive rate of the predictions"""
     def __init__(self, flags):
         super().__init__(flags)
-        self.flags = flags
+        self.register_buffer('log_debias', debiasing_params_target_rate(flags))
 
     def variational_log_probability(self, latent_func, labels):
         """
@@ -41,13 +42,10 @@ class TunePrLikelihood(BaselineLikelihood):
             log_lik_neg = log_normal_cdf(-latent_samples)
             log_lik_pos = log_normal_cdf(latent_samples)
             log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
-            log_debias = self._log_debiasing_parameters()
-            if self.flags.use_cuda:
-                log_debias = log_debias.cuda()
             # `log_debias` has shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
             # then we use this as index for `log_debias`
             # shape of log_debias_per_example: (batch_size, 2)
-            log_debias_per_example = torch.index_select(input=log_debias, dim=0,
+            log_debias_per_example = torch.index_select(input=self.log_debias, dim=0,
                                                         index=labels_bin * 2 + sens_attr)
             weighted_log_lik = log_debias_per_example + log_lik
             log_cond_prob = weighted_log_lik.logsumexp(dim=-1)
@@ -55,14 +53,12 @@ class TunePrLikelihood(BaselineLikelihood):
             log_cond_prob = log_normal_cdf(latent_samples.mul(target))
         return log_cond_prob.sum().div(num_samples)
 
-    def _log_debiasing_parameters(self):
-        return debiasing_params_target_rate(self.flags)
-
 
 class TuneTprLikelihood(TunePrLikelihood):
     """Likelihood that allows tuning the true positive rate of the predictions"""
-    def _log_debiasing_parameters(self):
-        return debiasing_params_target_tpr(self.flags)
+    def __init__(self, flags):
+        super().__init__(flags)
+        self.register_buffer('log_debias', debiasing_params_target_tpr(flags))
 
 
 def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
