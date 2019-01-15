@@ -199,8 +199,8 @@ def main_loop(flags):
 
     # if predictions are to be save or to be plotted, then make predictions on the test set
     if flags.preds_path or flags.plot:
-        print("Loading best model...")
-        utils.load_checkpoint(best_checkpoint, model, likelihood)
+        # print("Loading best model...")
+        # utils.load_checkpoint(best_checkpoint, model, likelihood)
         print("Making predictions...")
         pred_mean, pred_var = predict(model, likelihood, test_loader, flags.use_cuda)
         utils.save_predictions(pred_mean, pred_var, save_dir, flags)
