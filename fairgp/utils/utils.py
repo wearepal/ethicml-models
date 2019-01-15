@@ -97,8 +97,7 @@ def dataset2tensor(dataset):
     return torch.tensor(features, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
 
 
-def save_checkpoint(filename, save_dir, is_best_loss_yet, model, likelihood, mll, optimizer,
-                    epoch, best_loss):
+def save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_loss):
     """Save checkpoint"""
     checkpoint = {
         'model': model.state_dict(),
@@ -108,11 +107,7 @@ def save_checkpoint(filename, save_dir, is_best_loss_yet, model, likelihood, mll
         'epoch': epoch,
         'best_loss': best_loss,
     }
-    model_filename = save_dir / filename
-    torch.save(checkpoint, model_filename)
-    best_filename = save_dir / 'model_best.pth.tar'
-    if is_best_loss_yet:
-        shutil.copyfile(model_filename, best_filename)
+    torch.save(checkpoint, chkpt_path)
 
 
 def load_checkpoint(checkpoint_path, model, likelihood, mll=None, optimizer=None):

@@ -182,16 +182,17 @@ def main_loop(flags):
         if epoch % flags.eval_epochs == 0:
             # do evaluation and update the best loss
             val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
-            is_best_loss_yet = val_loss < best_loss
-            best_loss = min(val_loss, best_loss)
-            if is_best_loss_yet:
-                print(f"Best loss yet. Will be saved in '{best_checkpoint}'")
+            if val_loss < best_loss:
+                best_loss = val_loss
+                print(f"Best loss yet. Saving in '{best_checkpoint}'")
+                utils.save_checkpoint(best_checkpoint, model, likelihood, mll, optimizer, epoch,
+                                      best_loss)
 
+        if epoch % flags.chkpt_epochs == 0:
             # Save checkpoint
-            chkpt_filename = f'checkpoint_{epoch:04d}.pth.tar'
-            print(f"===> Saving checkpoint '{chkpt_filename}' in '{save_dir}'")
-            utils.save_checkpoint(chkpt_filename, save_dir, is_best_loss_yet, model, likelihood,
-                                  mll, optimizer, epoch, best_loss)
+            chkpt_path = save_dir / f'checkpoint_{epoch:04d}.pth.tar'
+            print(f"===> Saving checkpoint in '{chkpt_path}'")
+            utils.save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_loss)
 
     # if predictions are to be save or to be plotted, then make predictions on the test set
     if flags.preds_path or flags.plot:
