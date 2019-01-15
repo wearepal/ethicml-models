@@ -56,6 +56,8 @@ def parse_arguments(raw_args=None):
                         help=f'For learning rate drop multiply by this factor {default}')
     parser.add_argument('--manual_seed', **int_type,
                         help='manual seed, if not given resorts to random seed.')
+    parser.add_argument('--save_best', default=False, **bool_type,
+                        help=f'if True, the best model is saved in a separate file {default}')
 
     # Gaussian Process model
     parser.add_argument('--inf', default='Variational', help=f'Inference method {default_str}',

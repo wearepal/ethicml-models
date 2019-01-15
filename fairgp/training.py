@@ -185,7 +185,7 @@ def main_loop(flags):
         if epoch % flags.eval_epochs == 0:
             # do evaluation and update the best loss
             val_loss = evaluate(model, likelihood, test_loader, mll, step_counter, flags)
-            if val_loss < best_loss:
+            if flags.save_best and val_loss < best_loss:
                 best_loss = val_loss
                 print(f"Best loss yet. Saving in '{best_checkpoint}'")
                 utils.save_checkpoint(best_checkpoint, model, likelihood, mll, optimizer, epoch,
