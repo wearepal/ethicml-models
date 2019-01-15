@@ -159,9 +159,12 @@ def main_loop(flags):
 
     # Restore from checkpoint if one exists
     best_checkpoint = save_dir / 'model_best.pth.tar'
-    if best_checkpoint.is_file():
-        start_epoch, best_loss = utils.load_checkpoint(best_checkpoint, model, likelihood,
-                                                       mll, optimizer)
+    previous_checkpoints = list(save_dir.glob('checkpoint_*.pth.tar'))
+    if previous_checkpoints:
+        latest_chkpt = max(previous_checkpoints)  # `max()` is here equivalent to `sorted(...)[-1]`
+        print(f"===> Restoring from '{latest_chkpt}'")
+        start_epoch, best_loss = utils.load_checkpoint(
+            latest_chkpt, model, likelihood, mll, optimizer)
 
     print(f"Training for {flags.epochs} epochs")
     # Main training loop
