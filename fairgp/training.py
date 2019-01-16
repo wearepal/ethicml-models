@@ -139,6 +139,7 @@ def construct(flags):
 def main_loop(flags):
     # Check if CUDA is available
     flags.use_cuda = torch.cuda.is_available()
+    print(flags)  # print the configuration
     # Construct model and all other necessary objects
     model, likelihood, mll, optimizer, train_ds, test_ds = construct(flags)
     print(f"Number of training samples: {len(train_ds)}")
