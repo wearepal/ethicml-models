@@ -231,7 +231,7 @@ class PredictionOddsYhatY0S0(Mae):
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
-        test_for_y0_s0 = torch.eq(target, 0) * torch.eq(sens_attr, 0)
+        test_for_y0_s0 = torch.eq(target, -1) * torch.eq(sens_attr, 0)
         accepted = torch.masked_select(pred_mean, test_for_y0_s0).ge(.5).float()
         self._add(accepted)
 
@@ -242,6 +242,6 @@ class PredictionOddsYhatY0S1(Mae):
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
-        test_for_y0_s1 = torch.eq(target, 0) * torch.eq(sens_attr, 1)
+        test_for_y0_s1 = torch.eq(target, -1) * torch.eq(sens_attr, 1)
         accepted = torch.masked_select(pred_mean, test_for_y0_s1).ge(.5).float()
         self._add(accepted)
