@@ -4,7 +4,6 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 import torch
-from torchnet.meter import AverageValueMeter
 import numpy as np
 
 import gpytorch
@@ -55,7 +54,8 @@ def evaluate(model, likelihood, dataset, mll, step_counter, flags):
     model.eval()
     likelihood.eval()
 
-    loss_meter = AverageValueMeter()
+    loss_sum = 0.0
+    num_samples = 0
     metrics = utils.init_metrics(flags.metrics)
 
     with torch.no_grad():
@@ -64,11 +64,12 @@ def evaluate(model, likelihood, dataset, mll, step_counter, flags):
                 inputs, labels = inputs.cuda(), labels.cuda()
             output = model(inputs)
             loss = -mll(output, labels)
-            loss_meter.add(loss.item())
+            loss_sum += loss.item() * inputs.size()[0]  # needed because of different batch sizes
+            num_samples += inputs.size()[0]
             # Get classification predictions
             observed_pred = likelihood(output)
             utils.update_metrics(metrics, inputs, labels, observed_pred.mean)
-    average_loss = loss_meter.mean
+    average_loss = loss_sum / num_samples
     print(f"Average loss: {average_loss}")
     utils.record_metrics(metrics, step_counter=step_counter)
     return average_loss
