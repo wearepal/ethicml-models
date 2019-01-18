@@ -70,7 +70,7 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--lik', default='TunePrLikelihood',
                         help=f'Likelihood function {default_str}',
                         choices=['BaselineLikelihood', 'TunePrLikelihood', 'TuneTprLikelihood',
-                                 'GaussianLikelihood'])
+                                 'GaussianLikelihood', 'CalibrationLikelihood'])
 
     # Variational inference
     parser.add_argument('--num_components', default=1, **int_type,
@@ -123,6 +123,12 @@ def parse_arguments(raw_args=None):
     parser.add_argument('--p_ybary1_s0', default=1.0, **float_type, help='Target TPR for s=0')
     parser.add_argument('--p_ybary0_s1', default=1.0, **float_type, help='Target TNR for s=1')
     parser.add_argument('--p_ybary1_s1', default=1.0, **float_type, help='Target TPR for s=1')
+
+    # Calibration
+    parser.add_argument('--p_yybar0_s0', default=1.0, **float_type, help='Target NPV for s=0')
+    parser.add_argument('--p_yybar1_s0', default=1.0, **float_type, help='Target PPV for s=0')
+    parser.add_argument('--p_yybar0_s1', default=1.0, **float_type, help='Target NPV for s=1')
+    parser.add_argument('--p_yybar1_s1', default=1.0, **float_type, help='Target PPV for s=1')
 
     # Dataset
     parser.add_argument('--dataset_path', default='', **path_type,

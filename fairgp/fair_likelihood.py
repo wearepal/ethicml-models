@@ -61,6 +61,12 @@ class TuneTprLikelihood(TunePrLikelihood):
         self.register_buffer('log_debias', debiasing_params_target_tpr(flags))
 
 
+class CalibrationLikelihood(TunePrLikelihood):
+    """Likelihood that allows tuning the calibration of the predictions"""
+    def _log_debiasing_parameters(self):
+        return debiasing_params_target_calibration(self.flags)
+
+
 def compute_label_posterior(positive_value, positive_prior, label_evidence=None):
     """Return label posterior from positive likelihood P(y'=1|y,s) and positive prior P(y=1|s)
     Args:
@@ -162,6 +168,29 @@ def debiasing_params_target_tpr(flags):
     # P(y'=1|y,s) shape: (y, s)
     positive_value = np.stack([false_omission_rate, positive_predictive_value], axis=0)
     return compute_label_posterior(positive_value, positive_prior)
+
+
+def debiasing_params_target_calibration(flags):
+    p_y0_ybar0_s0 = flags.p_yybar0_s0
+    p_y1_ybar1_s0 = flags.p_yybar1_s0
+    p_y0_ybar0_s1 = flags.p_yybar0_s1
+    p_y1_ybar1_s1 = flags.p_yybar1_s1
+    p_y1_ybar0_s0 = 1 - p_y0_ybar0_s0
+    p_y0_ybar1_s0 = 1 - p_y1_ybar1_s0
+    p_y1_ybar0_s1 = 1 - p_y0_ybar0_s1
+    p_y0_ybar1_s1 = 1 - p_y1_ybar1_s1
+
+    # P(y|y',s) shape: (y, s, y')
+    label_posterior = np.array([[[p_y0_ybar0_s0, p_y0_ybar1_s0],
+                                 [p_y0_ybar0_s1, p_y0_ybar1_s1]],
+                                [[p_y1_ybar0_s0, p_y1_ybar1_s0],
+                                 [p_y1_ybar0_s1, p_y1_ybar1_s1]]])
+
+    # reshape to (y * s, y') so that we can use gather on the first dimension
+    label_posterior = np.reshape(label_posterior, (4, 2))
+    # take logarithm because we need that anyway later
+    log_label_posterior = np.log(label_posterior)
+    return torch.from_numpy(log_label_posterior.astype(np.float32))
 
 
 class GaussianLikelihood(GaussianBase):

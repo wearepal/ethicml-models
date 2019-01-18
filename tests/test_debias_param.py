@@ -1,7 +1,7 @@
 import numpy as np
 
-from fairgp.fair_likelihood import (debiasing_params_target_rate, positive_label_likelihood,
-                                    debiasing_params_target_tpr)
+from fairgp.fair_likelihood import (debiasing_params_target_rate, debiasing_params_target_tpr,
+                                    positive_label_likelihood, debiasing_params_target_calibration)
 
 
 RTOL = 1e-4
@@ -34,6 +34,15 @@ def tpr_args(biased_acceptance1, biased_acceptance2, p_ybary0_s0, p_ybary1_s0, p
     flags.p_ybary1_s1 = p_ybary1_s1
     flags.biased_acceptance1 = biased_acceptance1
     flags.biased_acceptance2 = biased_acceptance2
+    return flags
+
+
+def calibration_args(p_yybar0_s0, p_yybar1_s0, p_yybar0_s1, p_yybar1_s1):
+    flags = Namespace()
+    flags.p_yybar0_s0 = p_yybar0_s0
+    flags.p_yybar0_s1 = p_yybar0_s1
+    flags.p_yybar1_s0 = p_yybar1_s0
+    flags.p_yybar1_s1 = p_yybar1_s1
     return flags
 
 
@@ -136,4 +145,15 @@ class TestEqOddsParams:
                             p_y1_ybar1_s0=.6 * .1 / (.6 * .1 + (1 - .8) * (1 - .1)),
                             p_y0_ybar0_s1=.4 * (1 - .7) / (.4 * (1 - .7) + (1 - .5) * .7),
                             p_y1_ybar1_s1=.5 * .7 / (.5 * .7 + (1 - .4) * (1 - .7)))
+        np.testing.assert_allclose(actual, correct, RTOL)
+
+
+class TestCalibration:
+    @staticmethod
+    def test_extreme1():
+        actual = np.exp(debiasing_params_target_calibration(calibration_args(.1, .2, .3, .4)).numpy())
+        correct = np.array([[.1, .8],
+                            [.3, .6],
+                            [.9, .2],
+                            [.7, .4]])
         np.testing.assert_allclose(actual, correct, RTOL)
