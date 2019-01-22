@@ -7,19 +7,18 @@
 * GPyTorch
 
 ## How to use
-To run with default parameters, do
-
-```
-python3 run.py
-```
-
-However, this will fail unless there is a numpy file with training data in the same directory.
-
-To run with toy data, do
+To quickly run with toy data (no fairness), do
 
 ```
 python3 run.py --data toy_data_1d --inf Variational --likelihood GaussianLikelihood \
                --batch_size 50 --epochs 400 --plot simple_1d
+```
+
+To run with the supplied ProPublica data, do
+
+```
+python3 run.py --dataset_path ./propublica-recidivism_race_0.npz --batch_size 10000 \
+               --epochs 80 --num_inducing 500 --lr 0.05 --length_scale 1.1
 ```
 
 To see all possible flags, do
