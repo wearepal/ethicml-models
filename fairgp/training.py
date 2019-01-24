@@ -208,7 +208,3 @@ def main_loop(flags):
         utils.save_predictions(pred_mean, pred_var, save_dir, flags)
         if flags.plot:
             getattr(plot, flags.plot)(pred_mean, pred_var, train_ds, test_ds)
-
-
-if __name__ == "__main__":
-    main_loop(parse_arguments())
