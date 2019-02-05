@@ -4,3 +4,4 @@ from . import gp_model
 from . import fair_likelihood
 from . import datasets
 from . import utils
+from . import construct

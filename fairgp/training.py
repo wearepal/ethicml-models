@@ -6,12 +6,10 @@ from tempfile import mkdtemp
 import torch
 import numpy as np
 
-import gpytorch
 from gpytorch import settings
 
-from . import fair_likelihood, gp_model, datasets
-from .flags import parse_arguments
 from .utils import utils, plot
+from .construct import construct_model
 
 
 def train(model, optimizer, dataset, mll, previous_steps, flags):
@@ -98,51 +96,12 @@ def predict(model, likelihood, dataset, use_cuda):
     return pred_mean, pred_var
 
 
-def construct(flags):
-    """Construct GP object, likelihood and marginal log likelihood function from the flags
-
-    Args:
-        flags: settings object
-    """
-    # We use the built-in function "getattr" to turn the flags into Python references
-    data_func = getattr(datasets, flags.data)
-    Likelihood = getattr(fair_likelihood, flags.lik)
-    Kernel = getattr(gpytorch.kernels, flags.cov)
-    GPModel = getattr(gp_model, flags.inf)
-    Optimizer = getattr(torch.optim, flags.optimizer)
-
-    # Get dataset objects
-    train_ds, test_ds, inducing_inputs = data_func(flags)
-    input_dim = inducing_inputs.shape[1]
-
-    if flags.use_cuda:
-        inducing_inputs = inducing_inputs.cuda()
-
-    # Initialize likelihood, kernel and model
-    likelihood: gpytorch.likelihoods.Likelihood = Likelihood(flags)
-    # TODO: figure out how to specify initial values for the kernel parameters
-    kernel_unscaled: gpytorch.kernels.Kernel = Kernel(ard_num_dims=None if flags.iso else input_dim)
-    kernel = gpytorch.kernels.ScaleKernel(kernel_unscaled)
-    model: gpytorch.models.GP = GPModel(train_ds=train_ds, inducing_inputs=inducing_inputs,
-                                        likelihood=likelihood, kernel=kernel, flags=flags)
-    if flags.use_cuda:
-        model, likelihood = model.cuda(), likelihood.cuda()
-
-    # "Loss" for the GP model: the marginal log likelihood
-    mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
-
-    # Initialize optimizer
-    optimizer: torch.optim.Optimizer = Optimizer(
-        list(model.parameters()) + list(likelihood.parameters()), lr=flags.lr)
-    return model, likelihood, mll, optimizer, train_ds, test_ds
-
-
 def main_loop(flags):
     # Check if CUDA is available
     flags.use_cuda = torch.cuda.is_available()
     print(flags)  # print the configuration
     # Construct model and all other necessary objects
-    model, likelihood, mll, optimizer, train_ds, test_ds = construct(flags)
+    model, likelihood, mll, optimizer, train_ds, test_ds = construct_model(flags)
     print(f"Number of training samples: {len(train_ds)}")
 
     shuff = (len(train_ds) != flags.batch_size)  # don't shuffle if each batch equals the dataset
