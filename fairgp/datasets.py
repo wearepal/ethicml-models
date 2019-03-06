@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import TensorDataset
 import numpy as np
+import pandas as pd
 
 
 def sensitive_from_numpy(flags):
@@ -14,7 +15,24 @@ def sensitive_from_numpy(flags):
     """
     # Load data from `dataset_path`
     raw_data = np.load(Path(flags.dataset_path))
+    return _construct_from_numpy(raw_data, flags)
 
+
+def sensitive_from_parquet(flags):
+    """Load all data from the files given with the flags `train_x`, `train_s`, `train_y`, `test_x`,
+    `test_s`, `test_y`.
+    """
+    raw_data = {}
+    for path, key in [(flags.train_x, 'xtrain'), (flags.train_s, 'strain'),
+                      (flags.train_y, 'ytrain'), (flags.test_x, 'xtest'),
+                      (flags.test_s, 'stest'), (flags.test_y, 'ytest')]:
+        with Path(path).open('rb') as file_obj:
+            # Load data from the given path
+            raw_data[key] = pd.read_parquet(file_obj).values
+    return _construct_from_numpy(raw_data, flags)
+
+
+def _construct_from_numpy(raw_data, flags):
     # Normalize input and create DATA tuples for easier handling
     input_normalizer = _get_normalizer(raw_data['xtrain'], flags.dataset_standardize)
     train_x = torch.tensor(input_normalizer(raw_data['xtrain']), dtype=torch.float32)

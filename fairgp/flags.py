@@ -12,7 +12,8 @@ def parse_arguments(raw_args=None):
     parser = argparse.ArgumentParser()
     # Training flags
     parser.add_argument('--data', default='sensitive_from_numpy', help=f'Dataset {default_str}',
-                        choices=['sensitive_from_numpy', 'toy_data_1d', 'toy_data_1d_multitask'])
+                        choices=['sensitive_from_numpy', 'toy_data_1d', 'toy_data_1d_multitask',
+                                 'sensitive_from_parquet'])
     parser.add_argument('--lr', default=0.01,
                         help=f'Learning rate {default}', **float_type)
     parser.add_argument('--metrics', default='binary_accuracy', help='List of metrics to log')
@@ -135,6 +136,12 @@ def parse_arguments(raw_args=None):
                         help='Path to the numpy file that contains the data')
     parser.add_argument('--dataset_standardize', default=False, **bool_type,
                         help=f'If True, the inputs of the dataset are standardized {default}')
+    parser.add_argument('--train_x', **path_type, help='Training inputs')
+    parser.add_argument('--train_s', **path_type, help='Training sensitive attributes')
+    parser.add_argument('--train_y', **path_type, help='Training outputs')
+    parser.add_argument('--test_x', **path_type, help='Test inputs')
+    parser.add_argument('--test_s', **path_type, help='Test sensitive attributes')
+    parser.add_argument('--test_y', **path_type, help='Test outputs')
 
     flags = parser.parse_args(raw_args)
 
