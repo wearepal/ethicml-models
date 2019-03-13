@@ -7,19 +7,37 @@
 * GPyTorch
 
 ## How to use
-To run with default parameters, do
+To quickly run with toy data (no fairness), do
 
 ```
-python3 run.py
-```
-
-However, this will fail unless there is a numpy file with training data in the same directory.
-
-To run with toy data, do
-
-```
-python3 run.py --data toy_data_1d --inf Variational --likelihood GaussianLikelihood \
+python3 run.py --data toy_data_1d --inf Variational --lik GaussianLikelihood \
                --batch_size 50 --epochs 400 --plot simple_1d
+```
+
+To run with the supplied ProPublica data, do
+
+```
+python3 run.py --dataset_path ./propublica-recidivism_race_0.npz --batch_size 10000 \
+               --epochs 80 --num_inducing 500 --lr 0.05 --length_scale 1.1 --lik BaselineLikelihood
+```
+
+This will does not enforce any fairness, however.
+In order to enforce, for example, Equality of Opportunity,
+the correct likelihood function has to be chosen: `TuneTprLikelihood`.
+Additionally, the target TPRs have to be specified with the flags
+`p_ybary1_s0`, `p_ybary1_s1`, `p_ybary0_s0` and `p_ybary0_s1`.
+They correspond to the target TPR for group 0 and group 1
+and to the the target TNR for group 0 and group 1.
+Finally, the acceptance rate in the training set has to be specified.
+For the supplied data, these are 0.3521 for `s=0` and 0.4797 for `s=1`.
+
+Putting everything together, we get
+
+```
+python3 run.py --dataset_path ./propublica-recidivism_race_0.npz --batch_size 10000 \
+               --epochs 80 --num_inducing 500 --lr 0.05 --length_scale 1.1 --lik TuneTprLikelihood \
+               --p_ybary1_s0 1.0 --p_ybary1_s1 0.7 --p_ybary0_s0 1.0 --p_ybary0_s1 0.7 \
+               --biased_acceptance1 0.3521 --biased_acceptance2 0.4797
 ```
 
 To see all possible flags, do
