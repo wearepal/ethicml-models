@@ -100,8 +100,6 @@ def toy_data_1d_multitask(flags):
     output1 = np.cos(inputs)
     output2 = np.sin(inputs)
     outputs = np.concatenate((output1, output2), axis=1)
-
-    np.random.seed(4)
     (xtrain, ytrain), (xtest, ytest) = select_training_and_test(num_train, inputs, outputs)
 
     xtrain = torch.tensor(xtrain, dtype=torch.float32)
@@ -122,7 +120,6 @@ def toy_data_1d(flags):
     inputs = np.linspace(0, 5, num=n_all)
     outputs = np.cos(inputs)
     inputs = inputs[:, np.newaxis]
-    np.random.seed(4)
     (xtrain, ytrain), (xtest, ytest) = select_training_and_test(num_train, inputs, outputs)
 
     xtrain = torch.tensor(xtrain, dtype=torch.float32)
@@ -144,7 +141,11 @@ def select_training_and_test(num_train, *data_parts):
         Two lists: data_parts_train, data_parts_test
     """
     idx = np.arange(data_parts[0].shape[0])
-    np.random.shuffle(idx)
+
+    # get a local random state that is reproducible and doesn't affect other computations
+    random = np.random.RandomState(4)
+
+    random.shuffle(idx)
     train_idx = idx[:num_train]
     test_idx = np.sort(idx[num_train:])
 

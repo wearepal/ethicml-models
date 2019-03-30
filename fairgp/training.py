@@ -2,6 +2,7 @@
 import time
 from pathlib import Path
 from tempfile import mkdtemp
+import random
 
 import torch
 import numpy as np
@@ -97,6 +98,10 @@ def predict(model, likelihood, dataset, use_cuda):
 
 
 def main_loop(flags):
+    random.seed(flags.manual_seed)
+    np.random.seed(flags.manual_seed)
+    torch.manual_seed(flags.manual_seed)
+    torch.cuda.manual_seed_all(flags.manual_seed)
     # Check if CUDA is available
     flags.use_cuda = torch.cuda.is_available()
     print(flags)  # print the configuration
