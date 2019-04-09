@@ -63,14 +63,14 @@ def _inducing_inputs(max_num_inducing, train_x, train_s, s_as_input):
 
 def _get_normalizer(base, do_standardize):
     """Construct normalizer to prevent Cholesky problems"""
-    if do_standardize:
+    if do_standardize or (base.min() < -5 and base.max() > 5):
         mean, std = np.mean(base, axis=0), np.std(base, axis=0)
         std[std < 1e-7] = 1.
 
         def _standardizer(unstandardized):
             return (unstandardized - mean) / std
         return _standardizer
-    elif base.min() == 0 and base.max() > 10:
+    if base.min() == 0 and base.max() > 10:
         print("Doing normalization...")
         max_per_feature = np.amax(base, axis=0)
 
