@@ -63,7 +63,7 @@ def _inducing_inputs(max_num_inducing, train_x, train_s, s_as_input):
 
 def _get_normalizer(base, do_standardize):
     """Construct normalizer to prevent Cholesky problems"""
-    if do_standardize or (base.min() < -5 and base.max() > 5):
+    if do_standardize or (base.min() != 0 and (base.max() - base.min()) > 10):
         mean, std = np.mean(base, axis=0), np.std(base, axis=0)
         std[std < 1e-7] = 1.
 
