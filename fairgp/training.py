@@ -27,8 +27,14 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
         # )
         # Zero backpropped gradients from previous iteration
         optimizer.zero_grad()
-        # Get predictive output
-        output = model(inputs)
+        try:
+            # Get predictive output
+            output = model(inputs)
+        except RuntimeError as e:
+            error = str(e)
+            if error == "NaNs encounterd when trying to perform matrix-vector multiplication":
+                raise RuntimeError("Consider changing the lengthscale")
+            raise RuntimeError(error)
         # Calc loss and backprop gradients
         loss = -mll(output, labels)
         loss.backward()
