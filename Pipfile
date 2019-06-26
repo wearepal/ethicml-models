@@ -7,7 +7,7 @@ verify_ssl = true
 
 [packages]
 torch = ">=1.0.0"
-gpytorch = ">=0.1.1"
+gpytorch = "==0.1.1"
 numpy = "*"
 matplotlib = "*"
 
