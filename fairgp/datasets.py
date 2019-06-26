@@ -21,11 +21,9 @@ def sensitive_from_numpy(flags):
     train_y = torch.tensor(raw_data['ytrain'], dtype=torch.float32)
     train_s = torch.tensor(raw_data['strain'], dtype=torch.float32)
     test_x = torch.tensor(input_normalizer(raw_data['xtest']), dtype=torch.float32)
-    test_y = torch.tensor(raw_data['ytest'], dtype=torch.float32)
     test_s = torch.tensor(raw_data['stest'], dtype=torch.float32)
 
     train_y = _fix_labels(train_y)
-    test_y = _fix_labels(test_y)
 
     # # Construct the inducing inputs from the separated data
     inducing_inputs = _inducing_inputs(
@@ -35,7 +33,12 @@ def sensitive_from_numpy(flags):
         train_x = torch.cat((train_x, train_s), dim=1)
         test_x = torch.cat((test_x, test_s), dim=1)
     train_ds = TensorDataset(train_x, torch.cat((train_y, train_s), dim=1))
-    test_ds = TensorDataset(test_x, torch.cat((test_y, test_s), dim=1))
+    if 'ytest' in raw_data:
+        test_y = torch.tensor(raw_data['ytest'], dtype=torch.float32)
+        test_y = _fix_labels(test_y)
+        test_ds = TensorDataset(test_x, torch.cat((test_y, test_s), dim=1))
+    else:
+        test_ds = TensorDataset(test_x, test_s)
     return train_ds, test_ds, inducing_inputs
 
 
