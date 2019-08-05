@@ -89,8 +89,11 @@ def _get_normalizer(base, do_standardize):
 
 def _fix_labels(labels):
     if labels.min() == 0 and labels.max() == 1:
+        print("Labels are correct")
+        return labels
+    if labels.min() == -1 and labels.max() == 1:
         print("Fixing labels...")
-        return 2 * labels - 1
+        return (labels + 1) // 2
     return labels
 
 

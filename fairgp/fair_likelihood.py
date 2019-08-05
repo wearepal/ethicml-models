@@ -12,9 +12,9 @@ class BaselineLikelihood(BernoulliLikelihood):
         super().__init__()
         self.flags = flags
 
-    def variational_log_probability(self, latent_func, labels):
-        target, _ = torch.unbind(labels, dim=-1)
-        return super().variational_log_probability(latent_func, target)
+    def expected_log_prob(self, observations, function_dist):
+        target, _ = torch.unbind(observations, dim=-1)
+        return super().expected_log_prob(target, function_dist)
 
 
 class TunePrLikelihood(BaselineLikelihood):
@@ -23,35 +23,50 @@ class TunePrLikelihood(BaselineLikelihood):
         super().__init__(flags)
         self.register_buffer('log_debias', debiasing_params_target_rate(flags))
 
-    def variational_log_probability(self, latent_func, labels):
+    def expected_log_prob(self, observations, function_dist):
         """
         `target` is expected to be two-dimensional: y and s
         y is either -1 or 1
         s is either 0 or 1
         """
         # get samples
-        num_samples = settings.num_likelihood_samples.value()
-        latent_samples = latent_func.rsample(torch.Size([num_samples])).view(-1)
-        # get target and sensitive attribute
-        target, sens_attr = torch.unbind(labels, dim=-1)
-        target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
-        if self.training:
-            sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1).to(torch.int64)
-            # convert target to binary values (0 and 1)
-            labels_bin = (0.5 * (target + 1)).to(torch.int64)
-            log_lik_neg = log_normal_cdf(-latent_samples)
-            log_lik_pos = log_normal_cdf(latent_samples)
-            log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
-            # `log_debias` has shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
-            # then we use this as index for `log_debias`
-            # shape of log_debias_per_example: (batch_size, 2)
-            log_debias_per_example = torch.index_select(input=self.log_debias, dim=0,
-                                                        index=labels_bin * 2 + sens_attr)
-            weighted_log_lik = log_debias_per_example + log_lik
-            log_cond_prob = weighted_log_lik.logsumexp(dim=-1)
-        else:
-            log_cond_prob = log_normal_cdf(latent_samples.mul(target))
-        return log_cond_prob.sum().div(num_samples)
+        # num_samples = settings.num_likelihood_samples.value()
+        # latent_samples = function_dist.rsample(torch.Size([num_samples])).view(-1)
+        def _log_prob_lambda(latent_samples):
+            # considerations on shapes:
+            # latent_samples has the shape [num_samples, batch_size]
+            # target and sens_attr have shape [batch_size]
+            # it is okay, if log_debias_per_example also has shape [batch_size]
+            # and not [num_samples, batch_size], because the "correction" from
+            # log_debias_per_example will be the same for all samples that belong to the same label
+
+            # get target and sensitive attribute
+            target, sens_attr = torch.unbind(observations, dim=-1)
+            # target = target.unsqueeze(0).repeat(num_samples, 1).view(-1)
+            if self.training:
+                # sens_attr = sens_attr.unsqueeze(0).repeat(num_samples, 1).view(-1).to(torch.int64)
+                sens_attr = sens_attr.to(torch.int64)
+                # convert target to binary values (0 and 1)
+
+                # labels_bin = (0.5 * (target + 1)).to(torch.int64)
+                labels_bin = target.to(torch.int64)
+
+                log_lik_neg = log_normal_cdf(-latent_samples)
+                log_lik_pos = log_normal_cdf(latent_samples)
+                log_lik = torch.stack((log_lik_neg, log_lik_pos), dim=-1)
+                # `log_debias` has shape (y * s, y'). we compute the index as (y_index) * 2 + (s_index)
+                # then we use this as index for `log_debias`
+                # shape of log_debias_per_example: (batch_size, 2)
+                log_debias_per_example = torch.index_select(input=self.log_debias, dim=0,
+                                                            index=labels_bin * 2 + sens_attr)
+                weighted_log_lik = log_debias_per_example.unsqueeze(0) + log_lik
+                return weighted_log_lik.logsumexp(dim=-1)
+            else:
+                target = target.mul(2).sub(1)
+                return log_normal_cdf(latent_samples.mul(target))
+        log_prob = self.quadrature(_log_prob_lambda, function_dist)
+        return log_prob.sum(-1)
+        # return log_cond_prob.sum().div(num_samples)
 
 
 class TuneTprLikelihood(TunePrLikelihood):
