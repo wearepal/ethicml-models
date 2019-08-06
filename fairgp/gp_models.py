@@ -8,6 +8,7 @@ from .utils import utils
 
 class Variational(AbstractVariationalGP):
     """GP using variational inference"""
+
     def __init__(self, inducing_inputs, kernel, mean, flags, **kwargs):
         num_inducing = inducing_inputs.shape[0]
         print(f"num inducing from shape: {num_inducing}")
@@ -16,8 +17,12 @@ class Variational(AbstractVariationalGP):
 
         # The variational strategy defines how the GP prior is computed and
         # how to marginalize out the inducing point function values
-        variational_strategy = VariationalStrategy(self, inducing_inputs, variational_distribution,
-                                                   learn_inducing_locations=flags.optimize_inducing)
+        variational_strategy = VariationalStrategy(
+            self,
+            inducing_inputs,
+            variational_distribution,
+            learn_inducing_locations=flags.optimize_inducing,
+        )
         super().__init__(variational_strategy)
         # initialize mean and covariance
         # self.mean_module = gpytorch.means.ConstantMean()
@@ -37,8 +42,10 @@ class Variational(AbstractVariationalGP):
 
 class Exact(ExactGP):
     """GP using exact inference"""
+
     def __init__(self, train_ds, likelihood, kernel, mean, **kwargs):
         train_x, train_y = utils.dataset2tensor(train_ds)
+        train_x, train_y = train_x.squeeze(-1), train_y.squeeze(-1)
         super().__init__(train_x, train_y, likelihood)
         self.mean_module = mean
         self.covar_module = kernel
@@ -56,8 +63,10 @@ class Exact(ExactGP):
 
 class ExactMultitask(ExactGP):
     """GP using exact inference with multi-dimensional output"""
+
     def __init__(self, train_ds, likelihood, kernel, mean, **kwargs):
         train_x, train_y = utils.dataset2tensor(train_ds)
+        train_x, train_y = train_x.squeeze(-1), train_y.squeeze(-1)
         super().__init__(train_x, train_y, likelihood)
         num_tasks = train_y.size()[1]
         self.mean_module = gpytorch.means.MultitaskMean(mean, num_tasks=num_tasks)

@@ -25,7 +25,8 @@ def init_metrics(metric_flag):
         class_ = getattr(metrics_module, class_name)
         # Here, we filter out all functions and other classes which are not metrics
         if isinstance(class_, type(metrics_module.Metric)) and issubclass(
-                class_, metrics_module.Metric):
+            class_, metrics_module.Metric
+        ):
             dict_of_metrics[class_.name] = class_
 
     if isinstance(metric_flag, list):
@@ -78,23 +79,25 @@ def save_predictions(pred_mean, pred_var, save_dir, flags):
 
 def dataset2numpy(dataset):
     """Convert PyTorch dataset to numpy arrays"""
-    features = []
-    labels = []
-    for feature, label in dataset:
-        features.append(np.atleast_1d(feature.numpy()))
-        labels.append(np.atleast_1d(label.numpy()))
-    features, labels = np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
-    if len(features.shape) == 1:
-        features = features[:, np.newaxis]
-    if len(labels.shape) == 1:
-        labels = labels[:, np.newaxis]
-    return features, labels
+    # features = []
+    # labels = []
+    # for feature, label in dataset:
+    #     features.append(np.atleast_1d(feature.numpy()))
+    #     labels.append(np.atleast_1d(label.numpy()))
+    # features, labels = np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
+    # if len(features.shape) == 1:
+    #     features = features[:, np.newaxis]
+    # if len(labels.shape) == 1:
+    #     labels = labels[:, np.newaxis]
+    features, labels = dataset2tensor(dataset)
+    return features.numpy(), labels.numpy()
 
 
 def dataset2tensor(dataset):
     """Convert PyTorch dataset to tensors"""
-    features, labels = dataset2numpy(dataset)
-    return torch.tensor(features, dtype=torch.float32), torch.tensor(labels, dtype=torch.float32)
+    # create loader with enormous batch size
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1_000_000, shuffle=False)
+    return next(iter(dataloader))
 
 
 def save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_loss):
