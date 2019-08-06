@@ -3,8 +3,9 @@
 ## Requirements
 
 * Python >= 3.6
-* PyTorch >= 1.0
-* GPyTorch
+* PyTorch >= 1.1.0
+* GPyTorch == 0.3.4
+  (as the code goes deep into the internals of GPyTorch, no other version is guaranteed to work)
 
 ## How to use
 To quickly run with toy data (no fairness), do
