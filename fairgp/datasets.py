@@ -27,7 +27,8 @@ def sensitive_from_numpy(flags):
 
     # # Construct the inducing inputs from the separated data
     inducing_inputs = _inducing_inputs(
-        flags.num_inducing, train_x, train_s, flags.s_as_input).clone()
+        flags.num_inducing, train_x, train_s, flags.s_as_input
+    ).clone()
 
     if flags.s_as_input:
         train_x = torch.cat((train_x, train_s), dim=1)
@@ -59,9 +60,10 @@ def _inducing_inputs(max_num_inducing, train_x, train_s, s_as_input):
     num_train = train_x.size(0)
     num_inducing = min(num_train, max_num_inducing)
     if s_as_input:
-        return torch.cat((train_x[::num_train // num_inducing],
-                          train_s[::num_train // num_inducing]), -1)
-    return train_x[::num_train // num_inducing]
+        return torch.cat(
+            (train_x[:: num_train // num_inducing], train_s[:: num_train // num_inducing]), -1
+        )
+    return train_x[:: num_train // num_inducing]
 
 
 def _get_normalizer(base, do_standardize):
@@ -69,10 +71,11 @@ def _get_normalizer(base, do_standardize):
     if do_standardize or (base.min() != 0 and (base.max() - base.min()) > 10):
         print("Doing standardization...")
         mean, std = np.mean(base, axis=0), np.std(base, axis=0)
-        std[std < 1e-7] = 1.
+        std[std < 1e-7] = 1.0
 
         def _standardizer(unstandardized):
             return (unstandardized - mean) / std
+
         return _standardizer
     if base.min() == 0 and base.max() > 10:
         print("Doing normalization...")
@@ -80,10 +83,12 @@ def _get_normalizer(base, do_standardize):
 
         def _normalizer(unnormalized):
             return np.where(max_per_feature > 1e-7, unnormalized / max_per_feature, unnormalized)
+
         return _normalizer
 
     def _do_nothing(inp):
         return inp
+
     return _do_nothing
 
 
@@ -115,7 +120,7 @@ def toy_data_1d_multitask(flags):
     ytest = torch.tensor(ytest, dtype=torch.float32)
     train_ds = TensorDataset(xtrain, ytrain)
     test_ds = TensorDataset(xtest, ytest)
-    return train_ds, test_ds, xtrain[::num_train // num_inducing]
+    return train_ds, test_ds, xtrain[:: num_train // num_inducing]
 
 
 def toy_data_1d(flags):
@@ -135,7 +140,7 @@ def toy_data_1d(flags):
     ytest = torch.tensor(ytest, dtype=torch.float32)
     train_ds = TensorDataset(xtrain, ytrain)
     test_ds = TensorDataset(xtest, ytest)
-    return train_ds, test_ds, xtrain[::num_train // num_inducing]
+    return train_ds, test_ds, xtrain[:: num_train // num_inducing]
 
 
 def select_training_and_test(num_train, *data_parts):

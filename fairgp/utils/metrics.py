@@ -6,6 +6,7 @@ import torch
 
 class Metric:
     """Base class for metrics"""
+
     name = "empty_metric"
 
     def update(self, inputs, labels, pred_mean):
@@ -27,6 +28,7 @@ class Metric:
 
 class Mae(Metric):
     """Mean absolute error"""
+
     name = "MAE"
 
     def __init__(self):
@@ -48,10 +50,11 @@ class Mae(Metric):
 
 class Rmse(Mae):
     """Root mean squared error"""
+
     name = "RMSE"
 
     def update(self, inputs, labels, pred_mean):
-        self._add((pred_mean - labels)**2)
+        self._add((pred_mean - labels) ** 2)
 
     def result(self):
         return np.sqrt(self.sum / self.num)
@@ -59,6 +62,7 @@ class Rmse(Mae):
 
 class ClassAccuracy(Mae):
     """Accuracy for softmax output"""
+
     name = "class_accuracy"
 
     def update(self, inputs, labels, pred_mean):
@@ -67,6 +71,7 @@ class ClassAccuracy(Mae):
 
 class BinaryAccuracy(Mae):
     """Accuracy for output from the logistic function"""
+
     name = "binary_accuracy"
 
     def update(self, inputs, labels, pred_mean):
@@ -77,6 +82,7 @@ class BinaryAccuracy(Mae):
 
 class PredictionRateY1S0(Mae):
     """Acceptance Rate, group 1"""
+
     name = "pred_rate_y1_s0"
 
     def update(self, inputs, labels, pred_mean):
@@ -87,6 +93,7 @@ class PredictionRateY1S0(Mae):
 
 class PredictionRateY1S1(Mae):
     """Acceptance Rate, group 2"""
+
     name = "pred_rate_y1_s1"
 
     def update(self, inputs, labels, pred_mean):
@@ -97,6 +104,7 @@ class PredictionRateY1S1(Mae):
 
 class BaseRateY1S0(Mae):
     """Base acceptance rate, group 1"""
+
     name = "base_rate_y1_s0"
 
     def update(self, inputs, labels, pred_mean):
@@ -107,6 +115,7 @@ class BaseRateY1S0(Mae):
 
 class BaseRateY1S1(Mae):
     """Base acceptance rate, group 2"""
+
     name = "base_rate_y1_s1"
 
     def update(self, inputs, labels, pred_mean):
@@ -205,43 +214,47 @@ class BaseRateY1S1(Mae):
 
 class PredictionOddsYhatY1S0(Mae):
     """Opportunity P(yhat=1|s,y=1), group 1"""
+
     name = "pred_odds_yhaty1_s0"
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y1_s0 = torch.eq(target, 1) * torch.eq(sens_attr, 0)
-        accepted = torch.masked_select(pred_mean, test_for_y1_s0).ge(.5).float()
+        accepted = torch.masked_select(pred_mean, test_for_y1_s0).ge(0.5).float()
         self._add(accepted)
 
 
 class PredictionOddsYhatY1S1(Mae):
     """Opportunity P(yhat=1|s,y=1), group 2"""
+
     name = "pred_odds_yhaty1_s1"
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y1_s1 = torch.eq(target, 1) * torch.eq(sens_attr, 1)
-        accepted = torch.masked_select(pred_mean, test_for_y1_s1).ge(.5).float()
+        accepted = torch.masked_select(pred_mean, test_for_y1_s1).ge(0.5).float()
         self._add(accepted)
 
 
 class PredictionOddsYhatY0S0(Mae):
     """Opportunity P(yhat=0|s,y=0), group 1"""
+
     name = "pred_odds_yhaty0_s0"
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y0_s0 = torch.eq(target, -1) * torch.eq(sens_attr, 0)
-        accepted = torch.masked_select(pred_mean, test_for_y0_s0).ge(.5).float()
+        accepted = torch.masked_select(pred_mean, test_for_y0_s0).ge(0.5).float()
         self._add(accepted)
 
 
 class PredictionOddsYhatY0S1(Mae):
     """Opportunity P(yhat=0|s,y=0), group 2"""
+
     name = "pred_odds_yhaty0_s1"
 
     def update(self, inputs, labels, pred_mean):
         target, sens_attr = torch.unbind(labels, dim=-1)
         test_for_y0_s1 = torch.eq(target, -1) * torch.eq(sens_attr, 1)
-        accepted = torch.masked_select(pred_mean, test_for_y0_s1).ge(.5).float()
+        accepted = torch.masked_select(pred_mean, test_for_y0_s1).ge(0.5).float()
         self._add(accepted)
