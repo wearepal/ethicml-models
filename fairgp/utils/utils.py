@@ -79,18 +79,14 @@ def save_predictions(pred_mean, pred_var, save_dir, flags):
 
 def dataset2numpy(dataset):
     """Convert PyTorch dataset to numpy arrays"""
-    # features = []
-    # labels = []
-    # for feature, label in dataset:
-    #     features.append(np.atleast_1d(feature.numpy()))
-    #     labels.append(np.atleast_1d(label.numpy()))
-    # features, labels = np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
-    # if len(features.shape) == 1:
-    #     features = features[:, np.newaxis]
-    # if len(labels.shape) == 1:
-    #     labels = labels[:, np.newaxis]
-    features, labels = dataset2tensor(dataset)
-    return features.numpy(), labels.numpy()
+    features_tensor, labels_tensor = dataset2tensor(dataset)
+    features, labels = features_tensor.numpy(), labels_tensor.numpy()
+    # ensure that we have a feature dimension
+    if len(features.shape) == 1:
+        features = features[:, np.newaxis]
+    if len(labels.shape) == 1:
+        labels = labels[:, np.newaxis]
+    return features, labels
 
 
 def dataset2tensor(dataset):

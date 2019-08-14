@@ -127,7 +127,7 @@ def toy_data_1d(flags):
     """Simple 1D example with synthetic data."""
     n_all = 200
     num_train = 50
-    num_inducing = flags.num_inducing
+    num_inducing = min(num_train, flags.num_inducing)
 
     inputs = np.linspace(0, 5, num=n_all)
     outputs = np.cos(inputs)
