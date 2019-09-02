@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import gpytorch
 
-from . import likelihoods, gp_models, datasets
+from . import likelihoods, gp_models, datasets, utils
 
 
 def construct_model(flags):
@@ -71,7 +71,19 @@ def flags_to_python(flags):
     kernel_class = getattr(gpytorch.kernels, flags.cov)
     mean_class = getattr(gpytorch.means, flags.mean)
     model_class = getattr(gp_models, flags.inf)
-    optimizer_class = getattr(torch.optim, flags.optimizer)
+
+    if flags.optimizer == "SGD":
+        optimizer_class = torch.optim.SGD
+    elif flags.optimizer == "RMSprop":
+        optimizer_class = torch.optim.RMSprop
+    elif flags.optimizer == "Adam":
+        optimizer_class = torch.optim.Adam
+    elif flags.optimizer == "LBFGS":
+        optimizer_class = torch.optim.LBFGS
+    elif flags.optimizer == "RAdam":
+        optimizer_class = utils.RAdam
+    else:
+        raise RuntimeError(f"Unknown optimizer '{flags.optimizer}'.")
     return data_func, likelihood_class, kernel_class, mean_class, model_class, optimizer_class
 
 

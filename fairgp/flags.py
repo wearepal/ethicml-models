@@ -53,7 +53,7 @@ def parse_arguments(raw_args=None):
         '--optimizer',
         default='Adam',
         help=f'Optimizer to use for gradient descent {default_str}',
-        choices=['Adam', 'RMSprop', 'SGD', 'LBFGS'],
+        choices=['Adam', 'RMSprop', 'SGD', 'LBFGS', 'RAdam'],
     )
     parser.add_argument(
         '--model_name',
