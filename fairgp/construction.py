@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import gpytorch
+import math
 
 from . import likelihoods, gp_models, datasets, utils
 
@@ -19,22 +20,42 @@ def construct_model(flags):
     # Get dataset objects
     train_ds, test_ds, inducing_inputs = data_func(flags)
     input_dim = inducing_inputs.shape[1]
+    
+    if flags.cov == 'GridInterpolationKernel':
+#         kernel = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(
+#         lengthscale_prior=gpytorch.priors.SmoothedBoxPrior(
+#                     math.exp(-1), math.exp(1), sigma=0.1, transform=torch.exp
+#                 )
+#         )
+#                                              )
+        lengthscale_transf, inv_lengthscale_transf = get_lengthscale_transforms(flags.length_scale)
 
+        kernel_unscaled = gpytorch.kernels.RBFKernel(
+        ard_num_dims=None if flags.iso else input_dim,
+        param_transform=lengthscale_transf,
+        inv_param_transform=inv_lengthscale_transf
+        )
+        kernel= Kernel(gpytorch.kernels.ScaleKernel(kernel_unscaled), 
+                       num_dims=input_dim,
+                       grid_size=400,
+#                        grid_bounds=(-10., 10.)
+                      ) 
+    else:
+        lengthscale_transf, inv_lengthscale_transf = get_lengthscale_transforms(flags.length_scale)
+        kernel_unscaled: gpytorch.kernels.Kernel = Kernel(
+            ard_num_dims=None if flags.iso else input_dim,
+#             lengthscale_prior=gpytorch.priors.SmoothedBoxPrior(math.exp(-1), math.exp(1), sigma=0.1, transform=torch.exp),
+            param_transform=lengthscale_transf,
+            inv_param_transform=inv_lengthscale_transf
+        )
+        kernel= gpytorch.kernels.ScaleKernel(kernel_unscaled)   
+        
     if flags.use_cuda:
         inducing_inputs = inducing_inputs.cuda()
 
     # Initialize likelihood, kernel and model
     likelihood: gpytorch.likelihoods.Likelihood = Likelihood(flags)
-
-    # Initialize kernel
-    lengthscale_transf, inv_lengthscale_transf = get_lengthscale_transforms(flags.length_scale)
-    kernel_unscaled: gpytorch.kernels.Kernel = Kernel(
-        ard_num_dims=None if flags.iso else input_dim,
-        param_transform=lengthscale_transf,
-        inv_param_transform=inv_lengthscale_transf,
-    )
-    kernel = gpytorch.kernels.ScaleKernel(kernel_unscaled)
-
+    
     # Initialize kernel
     mean = Mean()
 
