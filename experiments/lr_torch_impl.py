@@ -4,6 +4,8 @@ Logistic Regression in PyTorch
 
 from typing import NamedTuple, Optional, Union
 import math
+import argparse
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -16,14 +18,9 @@ from torch.optim.optimizer import Optimizer, required
 import numpy as np
 import pandas as pd
 
-from ethicml.algorithms.inprocess import InAlgorithm
+from ethicml.implementations.utils import load_data_from_flags
 from ethicml.implementations.pytorch_common import CustomDataset, TestDataset
-from ethicml.metrics import TPR, Metric
 from ethicml.utility import DataTuple, TestTuple
-from ethicml.evaluators.per_sensitive_attribute import (
-    metric_per_sensitive_attribute,
-    ratio_per_sensitive_attribute,
-)
 
 
 class RAdam(Optimizer):
@@ -253,160 +250,192 @@ def fair_loss(logits, sens_attr, target, log_debias):
     return -weighted_log_lik.logsumexp(dim=-1)
 
 
-class LrTorch(InAlgorithm):
-    def __init__(
-        self,
-        weight_decay=1e-1,
-        batch_size=64,
-        lr_decay=1.0,
-        learning_rate=1e-3,
-        epochs=100,
-        fair=False,
-        debiasing_args: Optional[Union[DPFlags, EOFlags]] = None,
-        use_sgd=False,
-        use_s=False,
-    ):
-        super().__init__()
-        self.weight_decay = weight_decay
-        self.batch_size = batch_size
-        self.lr_decay = lr_decay
-        self.learning_rate = learning_rate
-        self.epochs = epochs
-        self.fair = fair
-        if fair:
-            assert debiasing_args is not None
-            self.debiasing_args: Union[DPFlags, EOFlags] = debiasing_args
-        self.use_sgd = use_sgd
-        self.device = torch.device("cpu")
-        self.use_s = use_s
+class LrSettings(NamedTuple):
+    weight_decay: float
+    batch_size: int
+    lr_decay: float
+    learning_rate: float
+    epochs: int
+    debiasing_args: Optional[Union[DPFlags, EOFlags]]
+    use_sgd: bool
+    use_s: bool
+    device: torch.device
 
-    @property
-    def name(self):
-        name_ = f"LR (torch), wd: {self.weight_decay}"
-        if self.use_sgd:
-            name_ += ", SGD"
-        else:
-            name_ += ", RAdam"
-        if self.use_s:
-            name_ += ", use s"
-        if self.fair:
-            if isinstance(self.debiasing_args, DPFlags):
-                name_ += f", PR_t: {self.debiasing_args.target_rate_s0}"
-            else:
-                name_ += f", TPR_t: {self.debiasing_args.p_ybary1_s0}"
-                name_ += f", TNR_t: {self.debiasing_args.p_ybary0_s0}"
-        return name_
 
-    def run(self, train: DataTuple, test: TestTuple):
-        in_dim = train.x.shape[1]
-        if self.use_s:
-            train = train.make_copy_with(x=pd.concat([train.x, train.s], axis="columns"))
-            test = test.make_copy_with(x=pd.concat([test.x, test.s], axis="columns"))
-            in_dim += 1
-        train_ds = CustomDataset(train)
-        test_ds = TestDataset(test)
-        train_ds = DataLoader(train_ds, batch_size=self.batch_size, pin_memory=True, shuffle=True)
-        test_ds = DataLoader(test_ds, batch_size=10000, pin_memory=True)
+def main():
+    parser = argparse.ArgumentParser()
 
-        if self.fair:
-            debiasing_args = self.debiasing_args
-            if debiasing_args.biased_acceptance_s0 is None:
-                biased_acceptance_s0 = float(
-                    train.y[train.y.columns[0]].loc[train.s[train.s.columns[0]] == 0].mean()
-                )
-                debiasing_args = debiasing_args._replace(biased_acceptance_s0=biased_acceptance_s0)
-            if debiasing_args.biased_acceptance_s1 is None:
-                biased_acceptance_s1 = float(
-                    train.y[train.y.columns[0]].loc[train.s[train.s.columns[0]] == 1].mean()
-                )
-                debiasing_args = debiasing_args._replace(biased_acceptance_s1=biased_acceptance_s1)
-            # print(debiasing_args)
-            if isinstance(debiasing_args, DPFlags):
-                self.debiasing_params = debiasing_params_target_rate(debiasing_args)
-            else:
-                self.debiasing_params = debiasing_params_target_tpr(debiasing_args)
+    # paths to the files with the data
+    parser.add_argument("--train_x", required=True)
+    parser.add_argument("--train_s", required=True)
+    parser.add_argument("--train_y", required=True)
+    parser.add_argument("--train_name", required=True)
+    parser.add_argument("--test_x", required=True)
+    parser.add_argument("--test_s", required=True)
+    parser.add_argument("--test_name", required=True)
+    parser.add_argument("--pred_path", required=True)
 
-        model = nn.Linear(in_dim, 1)
-        model.to(self.device)
-        optimizer: Optimizer
-        if self.use_sgd:
-            optimizer = SGD(
-                model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
-            )
-        else:
-            optimizer = RAdam(
-                model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
-            )
-        self._fit(
-            model=model,
-            train_data=train_ds,
-            optimizer=optimizer,
-            # lr_milestones=dict(milestones=[30, 60, 90, 120], gamma=0.3),
+    parser.add_argument('--weight_decay', type=float, required=True)
+    parser.add_argument('--batch_size', type=int, required=True)
+    parser.add_argument('--lr_decay', type=float, required=True)
+    parser.add_argument('--learning_rate', type=float, required=True)
+    parser.add_argument('--epochs', type=int, required=True)
+    parser.add_argument('--fairness', choices=["None", "DP", "EO"], required=True)
+    parser.add_argument('--use_sgd', type=eval, choices=[True, False], required=True)
+    parser.add_argument('--use_s', type=eval, choices=[True, False], required=True)
+    parser.add_argument('--use_gpu', type=eval, choices=[True, False], required=True)
+    parser.add_argument('--p_ybary1_s0', type=float)
+    parser.add_argument('--p_ybary1_s1', type=float)
+    parser.add_argument('--p_ybary0_s0', type=float)
+    parser.add_argument('--p_ybary0_s1', type=float)
+    parser.add_argument('--target_rate_s0', type=float)
+    parser.add_argument('--target_rate_s1', type=float)
+
+    args = parser.parse_args()
+    # convert args object to a dictionary and load the feather files from the paths
+    train, test = load_data_from_flags(vars(args))
+
+    if args.fairness == "DP":
+        assert args.target_rate_s0 is not None
+        assert args.target_rate_s1 is not None
+        debiasing_args = DPFlags(
+            target_rate_s0=args.target_rate_s0,
+            target_rate_s1=args.target_rate_s1,
         )
-        predictions = self.predict_dataset(model, test_ds)
-        return pd.DataFrame(predictions.numpy(), columns=["preds"])
+    elif args.fairness == "EO":
+        assert args.p_ybary1_s0 is not None
+        assert args.p_ybary1_s1 is not None
+        assert args.p_ybary0_s0 is not None
+        assert args.p_ybary0_s1 is not None
+        debiasing_args = EOFlags(
+            p_ybary1_s0=args.p_ybary1_s0,
+            p_ybary1_s1=args.p_ybary1_s1,
+            p_ybary0_s0=args.p_ybary0_s0,
+            p_ybary0_s1=args.p_ybary0_s1,
+        )
+    else:
+        debiasing_args = None
 
-    def _fit(self, model, train_data, optimizer, lr_milestones: Optional[dict] = None):
-        scheduler = None
-        if lr_milestones is not None:
-            scheduler = MultiStepLR(optimizer=optimizer, **lr_milestones)
-
-        for epoch in range(self.epochs):
-            # print(f"===> Epoch {epoch} of classifier training")
-
-            for x, s, y in train_data:
-                target = y
-                x = x.to(self.device)
-                target = target.to(self.device)
-
-                optimizer.zero_grad()
-                logits = model(x)
-
-                if self.fair:
-                    logits = logits.view(-1)
-                    s = s.to(self.device)
-                    s = s.view(-1)
-                    target = target.view(-1)
-                    losses = fair_loss(logits, s, target, self.debiasing_params)
-                else:
-                    logits = logits.view(-1, 1)
-                    targets = target.view(-1, 1)
-                    losses = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
-                loss = losses.sum() / x.size(0)
-
-                loss.backward()
-                optimizer.step()
-
-            if scheduler is not None:
-                scheduler.step(epoch)
-
-    def predict_dataset(self, model, data):
-        preds = []
-        with torch.set_grad_enabled(False):
-            for x, s in data:
-                x = x.to(self.device)
-
-                outputs = model(x)
-                batch_preds = torch.round(outputs.sigmoid())
-                preds.append(batch_preds)
-
-        preds = torch.cat(preds, dim=0).cpu().detach().view(-1)
-        return preds
+    settings = LrSettings(
+        weight_decay=args.weight_decay,
+        batch_size=args.batch_size,
+        lr_decay=args.lr_decay,
+        learning_rate=args.learning_rate,
+        epochs=args.epochs,
+        debiasing_args=debiasing_args,
+        use_sgd=args.use_sgd,
+        use_s=args.use_s,
+        device=torch.device("cuda") if args.use_gpu else torch.device("cpu"),
+    )
+    predictions = run(settings, train, test)
+    predictions.to_feather(Path(args.pred_path))
 
 
-class TPRRatio(Metric):
-    """TPR-ratio"""
+def run(settings: LrSettings, train: DataTuple, test: TestTuple) -> pd.DataFrame:
+    in_dim = train.x.shape[1]
+    if settings.use_s:
+        train = train.make_copy_with(x=pd.concat([train.x, train.s], axis="columns"))
+        test = test.make_copy_with(x=pd.concat([test.x, test.s], axis="columns"))
+        in_dim += 1
+    train_ds = CustomDataset(train)
+    test_ds = TestDataset(test)
+    train_ds = DataLoader(train_ds, batch_size=settings.batch_size, pin_memory=True, shuffle=True)
+    test_ds = DataLoader(test_ds, batch_size=10000, pin_memory=True)
 
-    def score(self, prediction: pd.DataFrame, actual) -> float:
-        per_sens = metric_per_sensitive_attribute(prediction, actual, TPR())
-        ratios = ratio_per_sensitive_attribute(per_sens)
+    debiasing_params = None
+    if settings.debiasing_args is not None:
+        debiasing_args = settings.debiasing_args
+        if debiasing_args.biased_acceptance_s0 is None:
+            biased_acceptance_s0 = float(
+                train.y[train.y.columns[0]].loc[train.s[train.s.columns[0]] == 0].mean()
+            )
+            debiasing_args = debiasing_args._replace(biased_acceptance_s0=biased_acceptance_s0)
+        if debiasing_args.biased_acceptance_s1 is None:
+            biased_acceptance_s1 = float(
+                train.y[train.y.columns[0]].loc[train.s[train.s.columns[0]] == 1].mean()
+            )
+            debiasing_args = debiasing_args._replace(biased_acceptance_s1=biased_acceptance_s1)
+        # print(debiasing_args)
+        if isinstance(debiasing_args, DPFlags):
+            debiasing_params = debiasing_params_target_rate(debiasing_args)
+        else:
+            debiasing_params = debiasing_params_target_tpr(debiasing_args)
 
-        return list(ratios.values())[0]
+    model = nn.Linear(in_dim, 1)
+    model.to(settings.device)
+    optimizer: Optimizer
+    if settings.use_sgd:
+        optimizer = SGD(
+            model.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay
+        )
+    else:
+        optimizer = RAdam(
+            model.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay
+        )
+    _fit(
+        settings=settings,
+        model=model,
+        train_data=train_ds,
+        optimizer=optimizer,
+        debiasing_params=debiasing_params,
+        # lr_milestones=dict(milestones=[30, 60, 90, 120], gamma=0.3),
+    )
+    predictions = _predict_dataset(settings, model, test_ds)
+    return pd.DataFrame(predictions.numpy(), columns=["preds"])
 
-    @property
-    def name(self) -> str:
-        return "TPR-ratio"
+def _fit(
+    settings: LrSettings,
+    model,
+    train_data,
+    optimizer,
+    debiasing_params,
+    lr_milestones: Optional[dict] = None
+):
+    scheduler = None
+    if lr_milestones is not None:
+        scheduler = MultiStepLR(optimizer=optimizer, **lr_milestones)
 
-    @property
-    def apply_per_sensitive(self) -> bool:
-        return False
+    for epoch in range(settings.epochs):
+        # print(f"===> Epoch {epoch} of classifier training")
+
+        for x, s, y in train_data:
+            target = y
+            x = x.to(settings.device)
+            target = target.to(settings.device)
+
+            optimizer.zero_grad()
+            logits = model(x)
+
+            if settings.debiasing_args is not None:
+                logits = logits.view(-1)
+                s = s.to(settings.device)
+                s = s.view(-1)
+                target = target.view(-1)
+                losses = fair_loss(logits, s, target, debiasing_params)
+            else:
+                logits = logits.view(-1, 1)
+                targets = target.view(-1, 1)
+                losses = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+            loss = losses.sum() / x.size(0)
+
+            loss.backward()
+            optimizer.step()
+
+        if scheduler is not None:
+            scheduler.step(epoch)
+
+def _predict_dataset(settings: LrSettings, model, data):
+    preds = []
+    with torch.set_grad_enabled(False):
+        for x, s in data:
+            x = x.to(settings.device)
+
+            outputs = model(x)
+            batch_preds = torch.round(outputs.sigmoid())
+            preds.append(batch_preds)
+
+    return torch.cat(preds, dim=0).cpu().detach().view(-1)
+
+
+if __name__ == "__main__":
+    main()
