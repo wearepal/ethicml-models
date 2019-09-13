@@ -44,5 +44,6 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
             xpreds[:, in_dim], lower_bound, upper_bound, color='gray', alpha=0.25, label='95% CI'
         )
     fig.legend(loc='lower left')
-    fig.show()
-    input("Press Enter to continue...")
+    plt.show()
+    # fig.show()
+    # input("Press Enter to continue...")
