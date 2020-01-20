@@ -2,13 +2,11 @@
 from pathlib import Path
 from typing import Dict, Union, Optional, List, NamedTuple
 
-import pandas as pd
-
 from ethicml.algorithms.inprocess import InAlgorithmAsync
 from ethicml.algorithms.inprocess.shared import flag_interface
 from ethicml.utility import PathTuple, TestPathTuple
-from ethicml.metrics import Metric, TPR
-from ethicml.evaluators import metric_per_sensitive_attribute, ratio_per_sensitive_attribute
+
+from .common import ROOT_PATH
 
 __all__ = ["EOFlags", "DPFlags", "TuningLr"]
 
@@ -109,22 +107,4 @@ class TuningLr(InAlgorithmAsync):
         self, train_paths: PathTuple, test_paths: TestPathTuple, pred_path: Path
     ) -> List[str]:
         cmds = flag_interface(train_paths, test_paths, pred_path, self.flags)
-        return ["lr_torch_impl2.py"] + cmds
-
-
-class TPRRatio(Metric):
-    """TPR-ratio"""
-
-    def score(self, prediction: pd.DataFrame, actual) -> float:
-        per_sens = metric_per_sensitive_attribute(prediction, actual, TPR())
-        ratios = ratio_per_sensitive_attribute(per_sens)
-
-        return list(ratios.values())[0]
-
-    @property
-    def name(self) -> str:
-        return "TPR-ratio"
-
-    @property
-    def apply_per_sensitive(self) -> bool:
-        return False
+        return [str(ROOT_PATH / "implementations" / "run_tuning_lr.py")] + cmds

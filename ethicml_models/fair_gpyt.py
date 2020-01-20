@@ -10,6 +10,8 @@ from ethicml.common import implements
 from ethicml.utility import DataTuple, TestTuple
 from ethicml.algorithms.inprocess import InAlgorithmAsync, InstalledModel
 
+from .common import ROOT_PATH
+
 __all__ = ["GPyT", "GPyTDemPar", "GPyTEqOdds"]
 
 PRED_FNAME = "predictions.npz"
@@ -24,7 +26,7 @@ class GPyT(InstalledModel):
 
     basename = "GPyT"
 
-    def __init__(self, s_as_input=True, flags=None, code_dir=Path("implementations/")):
+    def __init__(self, s_as_input=True, flags=None, code_dir=ROOT_PATH / "implementations"):
         """Instantiate the model.
 
         Args:

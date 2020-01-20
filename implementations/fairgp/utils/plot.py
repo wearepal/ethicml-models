@@ -1,6 +1,5 @@
 """Plotting functions"""
 import numpy as np
-from matplotlib import pyplot as plt
 
 from .utils import dataset2numpy
 
@@ -22,6 +21,7 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
         test: testing inputs and outputs
         in_dim: (optional) the input dimension that will be plotted
     """
+    from matplotlib import pyplot as plt
     xtrain, ytrain = train
     xtest, ytest = test
     pred_mean, pred_var = preds
