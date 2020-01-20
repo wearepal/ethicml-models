@@ -32,13 +32,13 @@ def init_metrics(metric_flag):
     if isinstance(metric_flag, list):
         metric_list = metric_flag  # `metric_flag` is already a list
     else:
-        metric_list = metric_flag.split(',')  # Split `metric_flag` into a list
+        metric_list = metric_flag.split(",")  # Split `metric_flag` into a list
     for name in metric_list:
         try:
             # Now we can just look up the metrics in the dictionary we created
             metric = dict_of_metrics[name]
         except KeyError:  # No metric found with the name `name`
-            raise ValueError(f"Unknown metric \"{name}\"")
+            raise ValueError(f'Unknown metric "{name}"')
         metrics[name] = metric()
     return metrics
 
@@ -74,7 +74,7 @@ def save_predictions(pred_mean, pred_var, save_dir, flags):
     if flags.preds_path:
         working_dir = save_dir if flags.save_dir else Path(".")
         np.savez_compressed(working_dir / flags.preds_path, pred_mean=pred_mean, pred_var=pred_var)
-        print(f"Saved in \"{str(working_dir / flags.preds_path)}\"")
+        print(f'Saved in "{str(working_dir / flags.preds_path)}"')
 
 
 def dataset2numpy(dataset):
@@ -99,12 +99,12 @@ def dataset2tensor(dataset):
 def save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_loss):
     """Save checkpoint"""
     checkpoint = {
-        'model': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'likelihood': likelihood.state_dict(),
-        'mll': mll.state_dict(),
-        'epoch': epoch,
-        'best_loss': best_loss,
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "likelihood": likelihood.state_dict(),
+        "mll": mll.state_dict(),
+        "epoch": epoch,
+        "best_loss": best_loss,
     }
     torch.save(checkpoint, chkpt_path)
 
@@ -112,12 +112,12 @@ def save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_l
 def load_checkpoint(checkpoint_path, model, likelihood, mll=None, optimizer=None):
     """Load checkpoint"""
     checkpoint = torch.load(str(checkpoint_path))
-    model.load_state_dict(checkpoint['model'])
-    likelihood.load_state_dict(checkpoint['likelihood'])
+    model.load_state_dict(checkpoint["model"])
+    likelihood.load_state_dict(checkpoint["likelihood"])
     if mll is not None:
-        mll.load_state_dict(checkpoint['mll'])
+        mll.load_state_dict(checkpoint["mll"])
     if optimizer is not None:
-        optimizer.load_state_dict(checkpoint['optimizer'])
-    start_epoch = checkpoint['epoch'] + 1
-    best_loss = checkpoint['best_loss']
+        optimizer.load_state_dict(checkpoint["optimizer"])
+    start_epoch = checkpoint["epoch"] + 1
+    best_loss = checkpoint["best_loss"]
     return start_epoch, best_loss

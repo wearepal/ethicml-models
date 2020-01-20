@@ -29,7 +29,7 @@ class TunePrLikelihood(BaselineLikelihood):
 
     def __init__(self, flags):
         super().__init__(flags)
-        self.register_buffer('log_debias', debiasing_params_target_rate(flags))
+        self.register_buffer("log_debias", debiasing_params_target_rate(flags))
 
     def expected_log_prob(self, observations, function_dist):
         """
@@ -85,7 +85,7 @@ class TuneTprLikelihood(TunePrLikelihood):
 
     def __init__(self, flags):
         super().__init__(flags)
-        self.register_buffer('log_debias', debiasing_params_target_tpr(flags))
+        self.register_buffer("log_debias", debiasing_params_target_tpr(flags))
 
 
 class CalibrationLikelihood(TunePrLikelihood):
