@@ -6,8 +6,8 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-torch = "==1.0.1"
-gpytorch = "==0.1.1"
+torch = "==1.1.0"
+gpytorch = "==0.3.4"
 numpy = "==1.16.2"
 matplotlib = "==3.0.3"
 

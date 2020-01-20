@@ -1,7 +1,11 @@
 """Definitions of GP models"""
 import gpytorch
 from gpytorch.models import AbstractVariationalGP, ExactGP
-from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy, GridInterpolationVariationalStrategy
+from gpytorch.variational import (
+    CholeskyVariationalDistribution,
+    VariationalStrategy,
+    GridInterpolationVariationalStrategy,
+)
 
 from .utils import utils
 
@@ -12,26 +16,26 @@ class Variational(AbstractVariationalGP):
     def __init__(self, inducing_inputs, kernel, mean, flags, **kwargs):
         num_inducing = inducing_inputs.shape[0]
         print(f"num inducing from shape: {num_inducing}")
-        
-        if (flags.cov == 'GridInterpolationKernel'): 
+
+        if flags.cov == 'GridInterpolationKernel':
             num_dim = inducing_inputs.shape[1]
-            grid_bounds=(-10., 10.)
-            grid_size=400
+            grid_bounds = (-10.0, 10.0)
+            grid_size = 400
             # define the variational distribution with the grid_size
             variational_distribution = CholeskyVariationalDistribution(
-                num_inducing_points = grid_size, batch_size=num_dim
+                num_inducing_points=grid_size, batch_size=num_dim
             )
             # The variational strategy defines how the GP prior is computed and
             # how to marginalize out the function values (only for DKL)
             variational_strategy = GridInterpolationVariationalStrategy(
-                self, 
-#                 inducing_inputs,
-                grid_size=grid_size, 
-                grid_bounds=[grid_bounds], 
-#                 num_dim=num_dim,
-                variational_distribution=variational_distribution, 
-#                 mixing_params=False, sum_output=False,
-#                 learn_inducing_locations=flags.optimize_inducing
+                self,
+                #                 inducing_inputs,
+                grid_size=grid_size,
+                grid_bounds=[grid_bounds],
+                #                 num_dim=num_dim,
+                variational_distribution=variational_distribution,
+                #                 mixing_params=False, sum_output=False,
+                #                 learn_inducing_locations=flags.optimize_inducing
             )
         else:
             # define the variational distribution with the length of the inducing inputs
@@ -45,7 +49,7 @@ class Variational(AbstractVariationalGP):
                 variational_distribution,
                 learn_inducing_locations=flags.optimize_inducing,
             )
-            
+
         super().__init__(variational_strategy)
         # initialize mean and covariance
         # self.mean_module = gpytorch.means.ConstantMean()

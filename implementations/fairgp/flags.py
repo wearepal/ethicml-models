@@ -208,26 +208,26 @@ def parse_arguments(raw_args=None):
         help=f'Initial standard dev for the Gaussian likelihood {default}',
     )
 
-    #----------- Kernel---------------
+    # ----------- Kernel---------------
     parser.add_argument(
         '--length_scale',
         default=1.0,
         **float_type,
         help=f'Initial length scale for the kernel {default}',
     )
-#     parser.add_argument(
-#         '--period_length',
-#         default=2,
-#         **float_type,
-#         help=f'Initial period length scale for the Cosine kernel {default}',
-#     )
+    #     parser.add_argument(
+    #         '--period_length',
+    #         default=2,
+    #         **float_type,
+    #         help=f'Initial period length scale for the Cosine kernel {default}',
+    #     )
     parser.add_argument(
         '--grid_size',
         default=100,
         **int_type,
         help='Number of Grid size for GridInterpolationKernel',
     )
-    
+
     parser.add_argument(
         '--sf', default=1.0, **float_type, help=f'Initial standard dev for the kernel {default}'
     )

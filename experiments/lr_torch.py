@@ -4,6 +4,7 @@ Logistic Regression in PyTorch
 
 from typing import NamedTuple, Optional, Union
 import math
+import random
 
 import torch
 import torch.nn.functional as F
@@ -298,6 +299,11 @@ class LrTorch(InAlgorithm):
         return name_
 
     def run(self, train: DataTuple, test: TestTuple):
+        seed = 42
+        np.random.seed(seed)  # cpu vars
+        torch.manual_seed(seed)  # cpu  vars
+        random.seed(seed)  # Python
+
         in_dim = train.x.shape[1]
         if self.use_s:
             train = train.make_copy_with(x=pd.concat([train.x, train.s], axis="columns"))
