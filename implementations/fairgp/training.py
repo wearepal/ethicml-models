@@ -40,8 +40,8 @@ def main_loop(flags):
     start_epoch = 1
 
     # Restore from checkpoint if one exists
-    best_checkpoint = save_dir / 'model_best.pth.tar'
-    previous_checkpoints = list(save_dir.glob('checkpoint_*.pth.tar'))
+    best_checkpoint = save_dir / "model_best.pth.tar"
+    previous_checkpoints = list(save_dir.glob("checkpoint_*.pth.tar"))
     if previous_checkpoints:
         latest_chkpt = max(previous_checkpoints)  # `max()` is here equivalent to `sorted(...)[-1]`
         print(f"===> Restoring from '{latest_chkpt}'")
@@ -76,7 +76,7 @@ def main_loop(flags):
 
         if epoch % flags.chkpt_epochs == 0:
             # Save checkpoint
-            chkpt_path = save_dir / f'checkpoint_{epoch:04d}.pth.tar'
+            chkpt_path = save_dir / f"checkpoint_{epoch:04d}.pth.tar"
             print(f"===> Saving checkpoint in '{chkpt_path}'")
             utils.save_checkpoint(chkpt_path, model, likelihood, mll, optimizer, epoch, best_loss)
 
@@ -118,7 +118,7 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
         optimizer.step()  # update parameters
 
         if flags.logging_steps != 0 and (step - 1) % flags.logging_steps == 0:
-            print(f"Step #{step} ({time.time() - start:.4f} sec)\t", end=' ')
+            print(f"Step #{step} ({time.time() - start:.4f} sec)\t", end=" ")
             print(
                 f"loss: {loss.item():.3f}"
                 # f" log_lengthscale:"

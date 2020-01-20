@@ -17,7 +17,7 @@ class Variational(AbstractVariationalGP):
         num_inducing = inducing_inputs.shape[0]
         print(f"num inducing from shape: {num_inducing}")
 
-        if flags.cov == 'GridInterpolationKernel':
+        if flags.cov == "GridInterpolationKernel":
             num_dim = inducing_inputs.shape[1]
             grid_bounds = (-10.0, 10.0)
             grid_size = 400

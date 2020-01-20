@@ -12,4 +12,7 @@ setup(
         "numpy >= 1.15",
         "EthicML == 0.1.0a5",
     ],
+    extras_require={
+        "ci": ["pytest >= 3.3.2"],
+    },
 )

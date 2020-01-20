@@ -16,12 +16,12 @@ def sensitive_from_numpy(flags):
     raw_data = np.load(Path(flags.dataset_path))
 
     # Normalize input and create DATA tuples for easier handling
-    input_normalizer = _get_normalizer(raw_data['xtrain'], flags.dataset_standardize)
-    train_x = torch.tensor(input_normalizer(raw_data['xtrain']), dtype=torch.float32)
-    train_y = torch.tensor(raw_data['ytrain'], dtype=torch.float32)
-    train_s = torch.tensor(raw_data['strain'], dtype=torch.float32)
-    test_x = torch.tensor(input_normalizer(raw_data['xtest']), dtype=torch.float32)
-    test_s = torch.tensor(raw_data['stest'], dtype=torch.float32)
+    input_normalizer = _get_normalizer(raw_data["xtrain"], flags.dataset_standardize)
+    train_x = torch.tensor(input_normalizer(raw_data["xtrain"]), dtype=torch.float32)
+    train_y = torch.tensor(raw_data["ytrain"], dtype=torch.float32)
+    train_s = torch.tensor(raw_data["strain"], dtype=torch.float32)
+    test_x = torch.tensor(input_normalizer(raw_data["xtest"]), dtype=torch.float32)
+    test_s = torch.tensor(raw_data["stest"], dtype=torch.float32)
 
     train_y = _fix_labels(train_y)
 
@@ -34,8 +34,8 @@ def sensitive_from_numpy(flags):
         train_x = torch.cat((train_x, train_s), dim=1)
         test_x = torch.cat((test_x, test_s), dim=1)
     train_ds = TensorDataset(train_x, torch.cat((train_y, train_s), dim=1))
-    if 'ytest' in raw_data:
-        test_y = torch.tensor(raw_data['ytest'], dtype=torch.float32)
+    if "ytest" in raw_data:
+        test_y = torch.tensor(raw_data["ytest"], dtype=torch.float32)
         test_y = _fix_labels(test_y)
         test_ds = TensorDataset(test_x, torch.cat((test_y, test_s), dim=1))
     else:

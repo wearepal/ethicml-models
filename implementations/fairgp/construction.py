@@ -21,7 +21,7 @@ def construct_model(flags):
     train_ds, test_ds, inducing_inputs = data_func(flags)
     input_dim = inducing_inputs.shape[1]
 
-    if flags.cov == 'GridInterpolationKernel':
+    if flags.cov == "GridInterpolationKernel":
         #         kernel = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(
         #         lengthscale_prior=gpytorch.priors.SmoothedBoxPrior(
         #                     math.exp(-1), math.exp(1), sigma=0.1, transform=torch.exp

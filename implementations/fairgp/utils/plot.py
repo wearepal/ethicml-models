@@ -22,6 +22,7 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
         in_dim: (optional) the input dimension that will be plotted
     """
     from matplotlib import pyplot as plt
+
     xtrain, ytrain = train
     xtest, ytest = test
     pred_mean, pred_var = preds
@@ -33,17 +34,17 @@ def flexible_1d(xpreds, preds, train, test, in_dim=0):
     fig, plots = plt.subplots(nrows=out_dims, ncols=1, squeeze=False)
     plots = plots[:, 0]
     for i, plot in enumerate(plots):
-        plot.plot(xtrain[:, in_dim], ytrain[:, i], '.', mew=2, label='trainings')
-        plot.plot(xtest[:, in_dim], ytest[:, i], 'o', mew=2, label='tests')
-        plot.plot(xpreds[:, in_dim], pred_mean[:, i], 'x', mew=2, label='predictions')
+        plot.plot(xtrain[:, in_dim], ytrain[:, i], ".", mew=2, label="trainings")
+        plot.plot(xtest[:, in_dim], ytest[:, i], "o", mew=2, label="tests")
+        plot.plot(xpreds[:, in_dim], pred_mean[:, i], "x", mew=2, label="predictions")
 
         upper_bound = pred_mean[:, i] + 1.96 * np.sqrt(pred_var[:, i])
         lower_bound = pred_mean[:, i] - 1.96 * np.sqrt(pred_var[:, i])
 
         plot.fill_between(
-            xpreds[:, in_dim], lower_bound, upper_bound, color='gray', alpha=0.25, label='95% CI'
+            xpreds[:, in_dim], lower_bound, upper_bound, color="gray", alpha=0.25, label="95% CI"
         )
-    fig.legend(loc='lower left')
+    fig.legend(loc="lower left")
     plt.show()
     # fig.show()
     # input("Press Enter to continue...")
