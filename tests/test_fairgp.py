@@ -1,18 +1,17 @@
-"""FairGP tests"""
+"""FairGP tests."""
 import pandas as pd
 from pytest import approx
 
 from ethicml.algorithms import run_blocking
 from ethicml.algorithms.inprocess import InAlgorithmAsync
-from ethicml.data import load_data, Toy
-from ethicml.preprocessing import train_test_split
+from ethicml.utility import TrainTestPair
 
-from models import GPyT, GPyTDemPar, GPyTEqOdds
+from ethicml_models import GPyT, GPyTDemPar, GPyTEqOdds
 
 
-def test_gpyt():
+def test_gpyt(toy_train_test: TrainTestPair):
     """test gpyt"""
-    train, test = train_test_split(load_data(Toy()))
+    train, test = toy_train_test
 
     baseline: InAlgorithmAsync = GPyT(flags=dict(epochs=2, length_scale=2.4))
     dem_par: InAlgorithmAsync = GPyTDemPar(flags=dict(epochs=2, length_scale=0.05))
