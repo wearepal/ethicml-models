@@ -32,17 +32,17 @@ class DPFlags(NamedTuple):
 class TuningLr(InAlgorithmAsync):
     def __init__(
         self,
-        weight_decay=1e-1,
-        batch_size=64,
-        lr_decay=1.0,
-        learning_rate=1e-3,
-        epochs=100,
-        fair=False,
+        weight_decay: float = 1e-1,
+        batch_size: int = 64,
+        lr_decay: float = 1.0,
+        learning_rate: float = 1e-3,
+        epochs: int = 100,
+        fair: bool = False,
         debiasing_args: Optional[Union[DPFlags, EOFlags]] = None,
-        use_sgd=False,
-        use_s=False,
-        device="cpu",
-        seed=42,
+        use_sgd: bool = False,
+        use_s: bool = False,
+        device: str = "cpu",
+        seed: int = 42,
     ):
         super().__init__()
         self.flags: Dict[str, Union[bool, int, float, str]] = {
@@ -100,11 +100,11 @@ class TuningLr(InAlgorithmAsync):
                 self.__name += f", TNR_t: {debiasing_args.p_ybary0_s0}"
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.__name
 
     def _script_command(
         self, train_paths: PathTuple, test_paths: TestPathTuple, pred_path: Path
     ) -> List[str]:
         cmds = flag_interface(train_paths, test_paths, pred_path, self.flags)
-        return [str(ROOT_PATH / "implementations" / "run_tuning_lr.py")] + cmds
+        return [str(ROOT_PATH / "implementations" / "tuning_lr" / "run_tuning_lr.py")] + cmds

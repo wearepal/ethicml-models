@@ -2,7 +2,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, ClassVar, Union, Mapping, Tuple, Callable, Sequence
+from typing_extensions import Literal
 import numpy as np
 import pandas as pd
 
@@ -19,14 +20,22 @@ MAX_EPOCHS = 1000
 MAX_BATCH_SIZE = 10100  # can go up to 10000
 MAX_NUM_INDUCING = 5000  # 2500 seems to be more than enough
 SEED = 888
+CODE_DIR = ROOT_PATH / "implementations" / "fairgp"
+
+FlagType = Dict[str, Union[int, float, str, bool]]
 
 
 class GPyT(InstalledModel):
     """Normal GP model."""
 
-    basename = "GPyT"
+    basename: ClassVar[str] = "GPyT"
 
-    def __init__(self, s_as_input=True, flags=None, code_dir=ROOT_PATH / "implementations"):
+    def __init__(
+        self,
+        s_as_input: bool = True,
+        flags: Optional[FlagType] = None,
+        code_dir: Path = CODE_DIR,
+    ):
         """Instantiate the model.
 
         Args:
@@ -75,7 +84,7 @@ class GPyT(InstalledModel):
         predictions = label_converter((pred_mean > 0.5).astype(raw_data["ytrain"].dtype)[:, 0])
         return pd.DataFrame(predictions, columns=["preds"])
 
-    async def _run_gpyt(self, flags):
+    async def _run_gpyt(self, flags: FlagType) -> None:
         """Generate command to run GPyT."""
         cmd = [str(self._code_path / "run_fairgp.py")]
         # apply flag overwrites
@@ -85,11 +94,11 @@ class GPyT(InstalledModel):
         await self._call_script(cmd)
 
     @staticmethod
-    def _additional_parameters(_):
+    def _additional_parameters(_: Mapping[str, np.ndarray]) -> FlagType:
         return dict(lik="BaselineLikelihood")
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Getter for the algorithm name."""
         return f"{self.basename}_in_{self.s_as_input}"
 
@@ -97,17 +106,17 @@ class GPyT(InstalledModel):
 class GPyTDemPar(GPyT):
     """GP algorithm which enforces demographic parity."""
 
-    MEAN = 2  # pylint: disable=invalid-name
-    MIN = 3  # pylint: disable=invalid-name
-    MAX = 4  # pylint: disable=invalid-name
+    MEAN: ClassVar[Literal[2]] = 2  # pylint: disable=invalid-name
+    MIN: ClassVar[Literal[3]] = 3  # pylint: disable=invalid-name
+    MAX: ClassVar[Literal[4]] = 4  # pylint: disable=invalid-name
 
     def __init__(
         self,
-        target_acceptance=None,
-        average_prediction=False,
-        target_mode=MEAN,
-        marginal=False,
-        precision_target=1.0,
+        target_acceptance: Union[None, float, Tuple[float, float]] = None,
+        average_prediction: bool = False,
+        target_mode: Literal[2, 3, 4] = MEAN,
+        marginal: bool = False,
+        precision_target: float = 1.0,
         **kwargs,
     ):
         """Instantiate the model.
@@ -145,9 +154,10 @@ class GPyTDemPar(GPyT):
         self.marginal = marginal
         self.precision_target = precision_target
 
-    def _additional_parameters(self, raw_data):
+    def _additional_parameters(self, raw_data: Mapping[str, np.ndarray]) -> FlagType:
         biased_acceptance = compute_bias(raw_data["ytrain"], raw_data["strain"])
 
+        target_rate: Union[float, Tuple[float, float]]
         if self.target_acceptance is None:
             if self.target_mode == self.MEAN:
                 target_rate = 0.5 * (biased_acceptance[0] + biased_acceptance[1])
@@ -165,7 +175,7 @@ class GPyTDemPar(GPyT):
         if self.marginal:
             p_s = prior_s(raw_data["strain"])
         else:
-            p_s = [0.5] * 2
+            p_s = (0.5, 0.5)
 
         return dict(
             lik="TunePrLikelihood",
@@ -182,7 +192,7 @@ class GPyTDemPar(GPyT):
         )
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Getter for the algorithm name."""
         return self.__name
 
@@ -192,13 +202,13 @@ class GPyTEqOdds(GPyT):
 
     def __init__(
         self,
-        average_prediction=False,
-        tpr=None,
-        marginal=False,
-        tnr0=None,
-        tnr1=None,
-        tpr0=None,
-        tpr1=None,
+        average_prediction: bool = False,
+        tpr: Optional[float] = None,
+        marginal: bool = False,
+        tnr0: Optional[float] = None,
+        tnr1: Optional[float] = None,
+        tpr0: Optional[float] = None,
+        tpr1: Optional[float] = None,
         **kwargs,
     ):
         """Init GP with eq. odds."""
@@ -231,13 +241,13 @@ class GPyTEqOdds(GPyT):
         self.average_prediction = average_prediction
         self.marginal = marginal
 
-    def _additional_parameters(self, raw_data):
+    def _additional_parameters(self, raw_data: Mapping[str, np.ndarray]) -> FlagType:
         biased_acceptance = compute_bias(raw_data["ytrain"], raw_data["strain"])
 
         if self.marginal:
             p_s = prior_s(raw_data["strain"])
         else:
-            p_s = [0.5] * 2
+            p_s = (0.5, 0.5)
 
         return dict(
             lik="TuneTprLikelihood",
@@ -319,24 +329,26 @@ class GPyTEqOdds(GPyT):
         return pd.DataFrame(predictions, columns=["preds"])
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Getter for algorithm name."""
         return self.__name
 
 
-def prior_s(sensitive):
+def prior_s(sensitive: np.ndarray) -> Tuple[float, float]:
     """Compute the bias in the labels with respect to the sensitive attributes."""
     return (np.sum(sensitive == 0) / len(sensitive), np.sum(sensitive == 1) / len(sensitive))
 
 
-def compute_bias(labels, sensitive):
+def compute_bias(labels: np.ndarray, sensitive: np.ndarray) -> Tuple[float, float]:
     """Compute the bias in the labels with respect to the sensitive attributes."""
     rate_y1_s0 = np.sum(labels[sensitive == 0] == 1) / np.sum(sensitive == 0)
     rate_y1_s1 = np.sum(labels[sensitive == 1] == 1) / np.sum(sensitive == 1)
     return rate_y1_s0, rate_y1_s1
 
 
-def compute_odds(labels, predictions, sensitive):
+def compute_odds(
+    labels: np.ndarray, predictions: np.ndarray, sensitive: np.ndarray
+) -> Dict[str, float]:
     """Compute the bias in the predictions with respect to the sensitive attr. and the labels."""
     return dict(
         p_ybary0_s0=np.mean(predictions[(labels == 0) & (sensitive == 0)] == 0),
@@ -346,7 +358,7 @@ def compute_odds(labels, predictions, sensitive):
     )
 
 
-def _fix_labels(labels):
+def _fix_labels(labels: Sequence[np.ndarray]) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
     """Make sure that labels are either 0 or 1.
 
     Args"
@@ -359,13 +371,13 @@ def _fix_labels(labels):
     label_values = list(np.unique(labels[0]))
     if label_values == [0, 1]:
 
-        def _do_nothing(inp):
+        def _do_nothing(inp: np.ndarray) -> np.ndarray:
             return inp
 
         return labels, _do_nothing
     if label_values == [-1, 1]:
 
-        def _converter(label):
+        def _converter(label: np.ndarray) -> np.ndarray:
             return (2 * label) - 1
 
         return [(y + 1) / 2 for y in labels], _converter
@@ -407,7 +419,9 @@ def split_train_dev(inputs, labels, sensitive):
     )
 
 
-def _flags(parameters, data_path, save_dir, s_as_input, model_name, num_train):
+def _flags(
+    parameters: FlagType, data_path, save_dir, s_as_input: bool, model_name: str, num_train: int
+) -> FlagType:
     batch_size = min(MAX_BATCH_SIZE, num_train)
     # epochs = _num_epochs(num_train)
     epochs = 70

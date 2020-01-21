@@ -1,6 +1,6 @@
 import numpy as np
 
-from implementations.fairgp.likelihoods import (
+from implementations.fairgp.fairgp.likelihoods import (
     debiasing_params_target_rate,
     debiasing_params_target_tpr,
     positive_label_likelihood,
