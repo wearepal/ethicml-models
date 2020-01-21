@@ -31,10 +31,7 @@ class GPyT(InstalledModel):
     basename: ClassVar[str] = "GPyT"
 
     def __init__(
-        self,
-        s_as_input: bool = True,
-        flags: Optional[FlagType] = None,
-        code_dir: Path = CODE_DIR,
+        self, s_as_input: bool = True, flags: Optional[FlagType] = None, code_dir: Path = CODE_DIR,
     ):
         """Instantiate the model.
 
@@ -358,7 +355,9 @@ def compute_odds(
     )
 
 
-def _fix_labels(labels: Sequence[np.ndarray]) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
+def _fix_labels(
+    labels: Sequence[np.ndarray],
+) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
     """Make sure that labels are either 0 or 1.
 
     Args"
