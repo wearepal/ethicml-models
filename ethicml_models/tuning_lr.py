@@ -1,10 +1,15 @@
 """Interface to the TuningLr algorithm."""
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Dict, Union, Optional, List, NamedTuple
+
+import numpy as np
+import pandas as pd
 
 from ethicml.algorithms.inprocess import InAlgorithmAsync
 from ethicml.algorithms.inprocess.shared import flag_interface
-from ethicml.utility import PathTuple, TestPathTuple
+from ethicml.utility import PathTuple, TestPathTuple, DataTuple, TestTuple, Prediction
+from ethicml.utility.data_structures import write_as_feather
 
 from .common import ROOT_PATH
 
@@ -108,3 +113,23 @@ class TuningLr(InAlgorithmAsync):
     ) -> List[str]:
         cmds = flag_interface(train_paths, test_paths, pred_path, self.flags)
         return [str(ROOT_PATH / "implementations" / "tuning_lr" / "run_tuning_lr.py")] + cmds
+
+    async def run_async(self, train: DataTuple, test: TestTuple) -> Prediction:
+        """Run Algorithm on the given data asynchronously.
+
+        Args:
+            train: training data
+            test: test data
+        """
+        with TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            train_paths, test_paths = write_as_feather(train, test, tmp_path)
+            pred_path = tmp_path / "predictions.npz"
+            cmd = self._script_command(train_paths, test_paths, pred_path)
+            await self._call_script(cmd)  # wait for scrip to run
+            results = np.load(pred_path)
+            info = {}
+            for key in results:
+                if key != "preds":
+                    info[key] = float(results[key])
+            return Prediction(hard=pd.Series(results["preds"]), info=info)

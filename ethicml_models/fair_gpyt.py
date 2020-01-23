@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ethicml.common import implements
-from ethicml.utility import DataTuple, TestTuple
+from ethicml.utility import DataTuple, TestTuple, Prediction
 from ethicml.algorithms.inprocess import InAlgorithmAsync, InstalledModel
 
 from .common import ROOT_PATH
@@ -46,7 +46,7 @@ class GPyT(InstalledModel):
         self.flag_overwrites: Dict[str, Any] = {} if flags is None else flags
 
     @implements(InAlgorithmAsync)
-    async def run_async(self, train: DataTuple, test: TestTuple) -> pd.DataFrame:
+    async def run_async(self, train: DataTuple, test: TestTuple) -> Prediction:
         (ytrain,), label_converter = _fix_labels([train.y.to_numpy()])
         raw_data = dict(
             xtrain=train.x.to_numpy(),
@@ -79,7 +79,7 @@ class GPyT(InstalledModel):
                 pred_mean = output["pred_mean"]
 
         predictions = label_converter((pred_mean > 0.5).astype(raw_data["ytrain"].dtype)[:, 0])
-        return pd.DataFrame(predictions, columns=["preds"])
+        return Prediction(hard=pd.Series(predictions))
 
     async def _run_gpyt(self, flags: FlagType) -> None:
         """Generate command to run GPyT."""
@@ -91,7 +91,8 @@ class GPyT(InstalledModel):
         await self._call_script(cmd)
 
     @staticmethod
-    def _additional_parameters(_: Mapping[str, np.ndarray]) -> FlagType:
+    def _additional_parameters(raw_data: Mapping[str, np.ndarray]) -> FlagType:
+        del raw_data
         return dict(lik="BaselineLikelihood")
 
     @property
@@ -114,7 +115,9 @@ class GPyTDemPar(GPyT):
         target_mode: Literal[2, 3, 4] = MEAN,
         marginal: bool = False,
         precision_target: float = 1.0,
-        **kwargs,
+        s_as_input: bool = True,
+        flags: Optional[FlagType] = None,
+        code_dir: Path = CODE_DIR,
     ):
         """Instantiate the model.
 
@@ -127,7 +130,7 @@ class GPyTDemPar(GPyT):
             marginal: when doing average_prediction, should the prior of s be taken into account?
             precision_target: how similar should target labels and true labels be
         """
-        super().__init__(**kwargs)
+        super().__init__(s_as_input=s_as_input, flags=flags, code_dir=code_dir)
         if self.s_as_input and average_prediction:
             self.__name = f"{self.basename}_dem_par_av_True"
             if marginal:
@@ -206,10 +209,12 @@ class GPyTEqOdds(GPyT):
         tnr1: Optional[float] = None,
         tpr0: Optional[float] = None,
         tpr1: Optional[float] = None,
-        **kwargs,
+        s_as_input: bool = True,
+        flags: Optional[FlagType] = None,
+        code_dir: Path = CODE_DIR,
     ):
         """Init GP with eq. odds."""
-        super().__init__(**kwargs)
+        super().__init__(s_as_input=s_as_input, flags=flags, code_dir=code_dir)
         if self.s_as_input and average_prediction:
             self.__name = "{self.basename}_eq_odds_av_True"
             if marginal:
@@ -260,7 +265,7 @@ class GPyTEqOdds(GPyT):
         )
 
     @implements(InAlgorithmAsync)
-    async def run_async(self, train: DataTuple, test: TestTuple) -> pd.DataFrame:
+    async def run_async(self, train: DataTuple, test: TestTuple) -> Prediction:
         (ytrain,), label_converter = _fix_labels([train.y.to_numpy()])
         raw_data = dict(
             xtrain=train.x.to_numpy(),
@@ -323,7 +328,7 @@ class GPyTEqOdds(GPyT):
 
         # Convert the result to the expected format
         predictions = label_converter((pred_mean > 0.5).astype(raw_data["ytrain"].dtype)[:, 0])
-        return pd.DataFrame(predictions, columns=["preds"])
+        return Prediction(hard=pd.Series(predictions))
 
     @property
     def name(self) -> str:
@@ -357,7 +362,7 @@ def compute_odds(
 
 def _fix_labels(
     labels: Sequence[np.ndarray],
-) -> Tuple[np.ndarray, Callable[[np.ndarray], np.ndarray]]:
+) -> Tuple[List[np.ndarray], Callable[[np.ndarray], np.ndarray]]:
     """Make sure that labels are either 0 or 1.
 
     Args"
@@ -373,7 +378,7 @@ def _fix_labels(
         def _do_nothing(inp: np.ndarray) -> np.ndarray:
             return inp
 
-        return labels, _do_nothing
+        return list(labels), _do_nothing
     if label_values == [-1, 1]:
 
         def _converter(label: np.ndarray) -> np.ndarray:
@@ -383,7 +388,9 @@ def _fix_labels(
     raise ValueError("Labels have unknown structure")
 
 
-def split_train_dev(inputs, labels, sensitive):
+def split_train_dev(
+    inputs: np.ndarray, labels: np.ndarray, sensitive: np.ndarray
+) -> Dict[str, np.ndarray]:
     """Split the given data into train and dev set with the proportion of labels being preserved."""
     n_total = inputs.shape[0]
     idx_s0_y0 = ((sensitive == 0) & (labels == 0)).nonzero()[0]
@@ -391,20 +398,22 @@ def split_train_dev(inputs, labels, sensitive):
     idx_s1_y0 = ((sensitive == 1) & (labels == 0)).nonzero()[0]
     idx_s1_y1 = ((sensitive == 1) & (labels == 1)).nonzero()[0]
 
-    train_fraction: List[int] = []
-    test_fraction: List[int] = []
+    train_fraction: List[np.ndarray[np.int64]] = []
+    test_fraction: List[np.ndarray[np.int64]] = []
     for idx in [idx_s0_y0, idx_s0_y1, idx_s1_y0, idx_s1_y1]:
         np.random.shuffle(idx)
 
         split_idx = int(len(idx) * 0.5) + 1  # make sure the train part is at least half
         train_fraction_a = idx[:split_idx]
         test_fraction_a = idx[split_idx:]
-        train_fraction += list(train_fraction_a)
-        test_fraction += list(test_fraction_a)
+        train_fraction += [train_fraction_a]
+        test_fraction += [test_fraction_a]
+    train_idx = np.concatenate(train_fraction, axis=0)
+    test_idx = np.concatenate(test_fraction, axis=0)
     xtrain, ytrain, strain = (
-        inputs[train_fraction],
-        labels[train_fraction],
-        sensitive[train_fraction],
+        inputs[train_idx],
+        labels[train_idx],
+        sensitive[train_idx],
     )
     # ensure that the train set has exactly the same size as the given set
     # (otherwise inducing inputs has wrong shape)
@@ -412,14 +421,19 @@ def split_train_dev(inputs, labels, sensitive):
         xtrain=np.concatenate((xtrain, xtrain))[:n_total],
         ytrain=np.concatenate((ytrain, ytrain))[:n_total],
         strain=np.concatenate((strain, strain))[:n_total],
-        xtest=inputs[test_fraction],
-        ytest=labels[test_fraction],
-        stest=sensitive[test_fraction],
+        xtest=inputs[test_idx],
+        ytest=labels[test_idx],
+        stest=sensitive[test_idx],
     )
 
 
 def _flags(
-    parameters: FlagType, data_path, save_dir, s_as_input: bool, model_name: str, num_train: int
+    parameters: FlagType,
+    data_path: str,
+    save_dir: str,
+    s_as_input: bool,
+    model_name: str,
+    num_train: int,
 ) -> FlagType:
     batch_size = min(MAX_BATCH_SIZE, num_train)
     # epochs = _num_epochs(num_train)
@@ -465,7 +479,7 @@ def _flags(
     }
 
 
-def _num_inducing(num_train):
+def _num_inducing(num_train: int) -> int:
     """Adaptive number of inducing inputs.
 
     num_train == 4,000 => num_inducing == 1121
@@ -474,7 +488,7 @@ def _num_inducing(num_train):
     return int(2500 / 141 * np.sqrt(num_train))
 
 
-def _num_epochs(num_train):
+def _num_epochs(num_train: int) -> int:
     """Adaptive number of epochs.
 
     num_train == 4,000 => num_epochs == 125.7

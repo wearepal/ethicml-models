@@ -1,9 +1,8 @@
 """FairLR tests."""
-import pandas as pd
 import numpy as np  # pylint: disable=unused-import  # import needed for mypy
 
 from ethicml.algorithms.inprocess import InAlgorithm
-from ethicml.utility import TrainTestPair
+from ethicml.utility import TrainTestPair, Prediction
 
 from ethicml_models import TuningLr
 
@@ -22,6 +21,6 @@ def test_tuning_lr(toy_train_test: TrainTestPair):
     assert model is not None
     assert model.name == "TuningLR, wd: 0.1, RAdam"
 
-    predictions: pd.DataFrame = model.run(train, test)
-    assert count_true(predictions.values == 1) == 198
-    assert count_true(predictions.values == 0) == 202
+    predictions: Prediction = model.run(train, test)
+    assert count_true(predictions.hard.values == 1) == 198
+    assert count_true(predictions.hard.values == 0) == 202

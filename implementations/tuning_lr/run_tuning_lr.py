@@ -1,7 +1,8 @@
 """Fair Logistic Regression in PyTorch."""
 
+from pathlib import Path
 import random
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Union, Tuple, Dict
 from typing_extensions import Literal
 
 import torch
@@ -15,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from ethicml.implementations.pytorch_common import CustomDataset, TestDataset
-from ethicml.implementations.utils import InAlgoArgs, load_data_from_flags, save_predictions
+from ethicml.implementations.utils import InAlgoArgs, load_data_from_flags
 from ethicml.utility import DataTuple, TestTuple
 
 from optimizer import RAdam
@@ -66,7 +67,9 @@ class DPFlags(NamedTuple):
     biased_acceptance_s1: Optional[float] = None
 
 
-def compute_label_posterior(positive_value, positive_prior, label_evidence=None) -> torch.Tensor:
+def compute_label_posterior(
+    positive_value, positive_prior, label_evidence=None
+) -> Tuple[torch.Tensor, np.ndarray]:
     """Return label posterior from positive likelihood P(y'=1|y,s) and positive prior P(y=1|s)
     Args:
         positive_value: P(y'=1|y,s), shape (y, s)
@@ -98,15 +101,15 @@ def compute_label_posterior(positive_value, positive_prior, label_evidence=None)
     label_posterior = np.reshape(label_posterior, (4, 2))
     # take logarithm because we need that anyway later
     log_label_posterior = np.log(label_posterior)
-    return torch.from_numpy(log_label_posterior.astype(np.float32))
+    return torch.from_numpy(log_label_posterior.astype(np.float32)), label_likelihood
 
 
-def debiasing_params_target_tpr(flags: EOFlags) -> torch.Tensor:
+def debiasing_params_target_tpr(flags: EOFlags) -> Tuple[torch.Tensor, np.ndarray]:
     """Debiasing parameters for targeting TPRs and TNRs
     Args:
         flags: object with parameters
     Returns:
-        P(y|y',s) with shape (y, s, y')
+        P(y|y',s) with shape (y, s, y') and P(y'|y,s) with shape (y, s, y')
     """
     assert flags.biased_acceptance_s0 is not None and flags.biased_acceptance_s1 is not None
     # P(y=1|s)
@@ -122,12 +125,14 @@ def debiasing_params_target_tpr(flags: EOFlags) -> torch.Tensor:
     return compute_label_posterior(positive_value, positive_prior)
 
 
-def debiasing_params_target_rate(flags: DPFlags) -> torch.Tensor:
-    """Debiasing parameters for implementing target acceptance rates
+def debiasing_params_target_rate(flags: DPFlags) -> Tuple[torch.Tensor, np.ndarray]:
+    """Debiasing parameters for implementing target acceptance rates.
+
     Args:
         flags: object with parameters
+
     Returns:
-        P(y|y',s) with shape (y, s, y')
+        P(y|y',s) with shape (y, s, y') and P(y'|y,s) with shape (y, s, y')
     """
     biased_acceptance_s0 = flags.biased_acceptance_s0
     biased_acceptance_s1 = flags.biased_acceptance_s1
@@ -194,7 +199,7 @@ def run(
     test: TestTuple,
     device,
     use_cuda: bool,
-) -> pd.DataFrame:
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     np.random.seed(args.seed)  # cpu vars
     torch.manual_seed(args.seed)  # cpu  vars
     random.seed(args.seed)  # Python
@@ -215,6 +220,7 @@ def run(
     test_dl = DataLoader(test_ds, batch_size=10000, pin_memory=True)
 
     debiasing_params = None
+    label_likelihood = None
     if debiasing_args is not None:
         if debiasing_args.biased_acceptance_s0 is None:
             biased_acceptance_s0 = float(
@@ -228,9 +234,9 @@ def run(
             debiasing_args = debiasing_args._replace(biased_acceptance_s1=biased_acceptance_s1)
         # print(debiasing_args)
         if isinstance(debiasing_args, DPFlags):
-            debiasing_params = debiasing_params_target_rate(debiasing_args)
+            debiasing_params, label_likelihood = debiasing_params_target_rate(debiasing_args)
         else:
-            debiasing_params = debiasing_params_target_tpr(debiasing_args)
+            debiasing_params, label_likelihood = debiasing_params_target_tpr(debiasing_args)
 
     model = nn.Linear(in_dim, 1)
     model.to(device)
@@ -249,7 +255,7 @@ def run(
         # lr_milestones=dict(milestones=[30, 60, 90, 120], gamma=0.3),
     )
     predictions = predict_dataset(model, test_dl, device)
-    return pd.DataFrame(predictions.numpy(), columns=["preds"])
+    return predictions.cpu().numpy(), label_likelihood
 
 
 def fit(
@@ -309,7 +315,27 @@ def predict_dataset(model, data, device):
     return preds
 
 
-def main():
+def compute_bound(label_likelihood: np.ndarray) -> Dict[str, float]:
+    """
+    Args:
+        label_likelihood: P(y'|y,s) with shape (y, s, y')
+    """
+    p_ybar1_y0_s0 = label_likelihood[0, 0, 1]
+    p_ybar1_y0_s1 = label_likelihood[0, 1, 1]
+    p_ybar1_y1_s0 = label_likelihood[1, 0, 1]
+    p_ybar1_y1_s1 = label_likelihood[1, 1, 1]
+
+    m_s0 = p_ybar1_y1_s0 - p_ybar1_y0_s0
+    m_s1 = p_ybar1_y1_s1 - p_ybar1_y0_s1
+    b_s0 = p_ybar1_y0_s0
+    b_s1 = p_ybar1_y0_s1
+
+    t_s0 = 0.5 * (m_s0 + 2 * b_s0 - 1) / m_s0
+    t_s1 = 0.5 * (m_s1 + 2 * b_s1 - 1) / m_s1
+    return dict(t_s0=t_s0, t_s1=t_s1)
+
+
+def main() -> None:
     args = TuningLrArgs(explicit_bool=True).parse_args()
     debiasing_args: Union[None, DPFlags, EOFlags] = None
     if args.fairness == "DP":
@@ -332,7 +358,7 @@ def main():
         )
     train, test = load_data_from_flags(args)
     device = torch.device(args.device)
-    preds = run(
+    preds, label_likelihood = run(
         args=args,
         debiasing_args=debiasing_args,
         train=train,
@@ -340,7 +366,9 @@ def main():
         device=device,
         use_cuda=args.device.lower() == "cpu",
     )
-    save_predictions(preds, args)
+    info = {} if label_likelihood is None else compute_bound(label_likelihood)
+    pred_path = Path(args.pred_path)
+    np.savez(pred_path, preds=preds, **info)
 
 
 if __name__ == "__main__":

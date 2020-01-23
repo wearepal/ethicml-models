@@ -1,6 +1,4 @@
-import pandas as pd
-
-from ethicml.utility import DataTuple
+from ethicml.utility import DataTuple, Prediction
 from ethicml.metrics import Metric, TPR
 from ethicml.evaluators import metric_per_sensitive_attribute, ratio_per_sensitive_attribute
 
@@ -10,7 +8,7 @@ __all__ = ["TPRRatio"]
 class TPRRatio(Metric):
     """TPR-ratio"""
 
-    def score(self, prediction: pd.DataFrame, actual: DataTuple) -> float:
+    def score(self, prediction: Prediction, actual: DataTuple) -> float:
         per_sens = metric_per_sensitive_attribute(prediction, actual, TPR())
         ratios = ratio_per_sensitive_attribute(per_sens)
 
