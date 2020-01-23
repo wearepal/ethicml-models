@@ -334,8 +334,8 @@ def main():
 def run(settings: LrSettings, train: DataTuple, test: TestTuple) -> pd.DataFrame:
     in_dim = train.x.shape[1]
     if settings.use_s:
-        train = train.make_copy_with(x=pd.concat([train.x, train.s], axis="columns"))
-        test = test.make_copy_with(x=pd.concat([test.x, test.s], axis="columns"))
+        train = train.replace(x=pd.concat([train.x, train.s], axis="columns"))
+        test = test.replace(x=pd.concat([test.x, test.s], axis="columns"))
         in_dim += 1
     train_ds = CustomDataset(train)
     test_ds = TestDataset(test)
