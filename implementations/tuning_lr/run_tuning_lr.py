@@ -338,6 +338,7 @@ def compute_bound(label_likelihood: np.ndarray) -> Dict[str, float]:
 def main() -> None:
     args = TuningLrArgs(explicit_bool=True).parse_args()
     debiasing_args: Union[None, DPFlags, EOFlags] = None
+    info = {}
     if args.fairness == "DP":
         debiasing_args = DPFlags(
             target_rate_s0=args.param1,
@@ -347,6 +348,7 @@ def main() -> None:
             biased_acceptance_s0=args.biased_acceptance_s0,
             biased_acceptance_s1=args.biased_acceptance_s1,
         )
+        info["PR_t"] = debiasing_args.target_rate_s0
     elif args.fairness == "EO":
         debiasing_args = EOFlags(
             p_ybary1_s0=args.param1,
@@ -356,6 +358,8 @@ def main() -> None:
             biased_acceptance_s0=args.biased_acceptance_s0,
             biased_acceptance_s1=args.biased_acceptance_s1,
         )
+        info["TPR_t"] = debiasing_args.p_ybary1_s0
+        info["TNR_t"] = debiasing_args.p_ybary0_s0
     train, test = load_data_from_flags(args)
     device = torch.device(args.device)
     preds, label_likelihood = run(
@@ -366,7 +370,8 @@ def main() -> None:
         device=device,
         use_cuda=args.device.lower() == "cpu",
     )
-    info = {} if label_likelihood is None else compute_bound(label_likelihood)
+    if label_likelihood is not None:
+        info.update(compute_bound(label_likelihood))
     pred_path = Path(args.pred_path)
     np.savez(pred_path, preds=preds, **info)
 

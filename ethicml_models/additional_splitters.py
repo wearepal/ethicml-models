@@ -2,14 +2,16 @@
 from typing import Tuple, Dict
 
 from ethicml.common import implements
-from ethicml.preprocessing import RandomSplit, train_test_split
+from ethicml.preprocessing import RandomSplit, train_test_split, DataSplitter
 from ethicml.utility import DataTuple
+
+__all__ = ["TrainTrainSplit"]
 
 
 class TrainTrainSplit(RandomSplit):
     """Splitter that returns two times the training set."""
 
-    @implements(RandomSplit)
+    @implements(DataSplitter)
     def __call__(
         self, data: DataTuple, split_id: int = 0
     ) -> Tuple[DataTuple, DataTuple, Dict[str, float]]:
