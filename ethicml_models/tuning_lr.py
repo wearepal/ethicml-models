@@ -49,7 +49,6 @@ class TuningLr(InAlgorithmAsync):
         device: str = "cpu",
         seed: int = 42,
     ):
-        super().__init__()
         self.flags: Dict[str, Union[bool, int, float, str]] = {
             "weight_decay": weight_decay,
             "batch_size": batch_size,
@@ -89,24 +88,21 @@ class TuningLr(InAlgorithmAsync):
                 self.flags.update({"biased_acceptance_s1": debiasing_args.biased_acceptance_s1})
 
         # =================================== generate name =======================================
-        self.__name = f"TuningLR, wd: {weight_decay}"
+        name = f"TuningLR, wd: {weight_decay}"
         if use_sgd:
-            self.__name += ", SGD"
+            name += ", SGD"
         else:
-            self.__name += ", RAdam"
+            name += ", RAdam"
         if use_s:
-            self.__name += ", use s"
+            name += ", use s"
         if fair:
             assert debiasing_args is not None
             if isinstance(debiasing_args, DPFlags):
-                self.__name += f", PR_t: {debiasing_args.target_rate_s0}"
+                name += f", PR_t: {debiasing_args.target_rate_s0}"
             else:
-                self.__name += f", TPR_t: {debiasing_args.p_ybary1_s0}"
-                self.__name += f", TNR_t: {debiasing_args.p_ybary0_s0}"
-
-    @property
-    def name(self) -> str:
-        return self.__name
+                name += f", TPR_t: {debiasing_args.p_ybary1_s0}"
+                name += f", TNR_t: {debiasing_args.p_ybary0_s0}"
+        super().__init__(name=name)
 
     def _script_command(
         self, train_paths: PathTuple, test_paths: TestPathTuple, pred_path: Path

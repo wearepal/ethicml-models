@@ -31,7 +31,11 @@ class GPyT(InstalledModel):
     basename: ClassVar[str] = "GPyT"
 
     def __init__(
-        self, s_as_input: bool = True, flags: Optional[FlagType] = None, code_dir: Path = CODE_DIR,
+        self,
+        s_as_input: bool = True,
+        flags: Optional[FlagType] = None,
+        code_dir: Path = CODE_DIR,
+        name: Optional[str] = None,
     ):
         """Instantiate the model.
 
@@ -41,7 +45,9 @@ class GPyT(InstalledModel):
             code_dir: (optional) a directory where the GPyT code can be found. if this is not given,
                       then the code is downloaded from GitHub
         """
-        super().__init__(dir_name=str(code_dir), top_dir=".")
+        if name is None:
+            name = f"{self.basename}_in_{s_as_input}"
+        super().__init__(name=name, dir_name=str(code_dir), top_dir=".")
         self.s_as_input = s_as_input
         self.flag_overwrites: Dict[str, Any] = {} if flags is None else flags
 
@@ -95,11 +101,6 @@ class GPyT(InstalledModel):
         del raw_data
         return dict(lik="BaselineLikelihood")
 
-    @property
-    def name(self) -> str:
-        """Getter for the algorithm name."""
-        return f"{self.basename}_in_{self.s_as_input}"
-
 
 class GPyTDemPar(GPyT):
     """GP algorithm which enforces demographic parity."""
@@ -130,29 +131,29 @@ class GPyTDemPar(GPyT):
             marginal: when doing average_prediction, should the prior of s be taken into account?
             precision_target: how similar should target labels and true labels be
         """
-        super().__init__(s_as_input=s_as_input, flags=flags, code_dir=code_dir)
         if self.s_as_input and average_prediction:
-            self.__name = f"{self.basename}_dem_par_av_True"
+            name = f"{self.basename}_dem_par_av_True"
             if marginal:
-                self.__name += "_marg"
+                name += "_marg"
         else:
-            self.__name = f"{self.basename}_dem_par_in_{self.s_as_input}"
+            name = f"{self.basename}_dem_par_in_{self.s_as_input}"
         if target_acceptance is not None:
-            self.__name += f"_tar_{target_acceptance}"
+            name += f"_tar_{target_acceptance}"
         elif target_mode != self.MEAN:
             if target_mode == self.MIN:
-                self.__name += "_tar_min"
+                name += "_tar_min"
             elif target_mode == self.MAX:
-                self.__name += "_tar_max"
+                name += "_tar_max"
             else:
-                self.__name += f"_tar_{target_mode}"
+                name += f"_tar_{target_mode}"
         if precision_target != 1.0:
-            self.__name += f"_pt_{precision_target}"
+            name += f"_pt_{precision_target}"
         self.target_acceptance = target_acceptance
         self.target_mode = target_mode
         self.average_prediction = average_prediction
         self.marginal = marginal
         self.precision_target = precision_target
+        super().__init__(name=name, s_as_input=s_as_input, flags=flags, code_dir=code_dir)
 
     def _additional_parameters(self, raw_data: Mapping[str, np.ndarray]) -> FlagType:
         biased_acceptance = compute_bias(raw_data["ytrain"], raw_data["strain"])
@@ -191,11 +192,6 @@ class GPyTDemPar(GPyT):
             p_ybary0_or_ybary1_s1=self.precision_target,
         )
 
-    @property
-    def name(self) -> str:
-        """Getter for the algorithm name."""
-        return self.__name
-
 
 class GPyTEqOdds(GPyT):
     """GP algorithm which enforces equality of opportunity."""
@@ -214,13 +210,12 @@ class GPyTEqOdds(GPyT):
         code_dir: Path = CODE_DIR,
     ):
         """Init GP with eq. odds."""
-        super().__init__(s_as_input=s_as_input, flags=flags, code_dir=code_dir)
         if self.s_as_input and average_prediction:
-            self.__name = "{self.basename}_eq_odds_av_True"
+            name = "{self.basename}_eq_odds_av_True"
             if marginal:
-                self.__name += "_marg"
+                name += "_marg"
         else:
-            self.__name = f"{self.basename}_eq_odds_in_{self.s_as_input}"
+            name = f"{self.basename}_eq_odds_in_{self.s_as_input}"
 
         self.odds: Optional[Dict[str, float]] = None
         if any(x is not None for x in [tnr0, tnr1, tpr0, tpr1]):  # if any of them is not `None`
@@ -233,15 +228,16 @@ class GPyTEqOdds(GPyT):
             ]:
                 if val is not None:
                     self.odds[target] = val
-                    self.__name += f"_{name}_{val}"  # add to name
+                    name += f"_{name}_{val}"  # add to name
                 else:
                     self.odds[target] = 1.0  # default value
         elif tpr is not None:
             self.odds = dict(p_ybary0_s0=1.0, p_ybary0_s1=1.0, p_ybary1_s0=tpr, p_ybary1_s1=tpr)
-            self.__name += f"_tpr_{tpr}"
+            name += f"_tpr_{tpr}"
 
         self.average_prediction = average_prediction
         self.marginal = marginal
+        super().__init__(name=name, s_as_input=s_as_input, flags=flags, code_dir=code_dir)
 
     def _additional_parameters(self, raw_data: Mapping[str, np.ndarray]) -> FlagType:
         biased_acceptance = compute_bias(raw_data["ytrain"], raw_data["strain"])
