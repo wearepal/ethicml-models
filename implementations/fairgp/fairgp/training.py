@@ -19,7 +19,8 @@ def main_loop(flags):
     torch.manual_seed(flags.manual_seed)
     torch.cuda.manual_seed_all(flags.manual_seed)
     # Check if CUDA is available
-    flags.use_cuda = torch.cuda.is_available()
+    device_str = f"cuda:{flags.gpu}" if (torch.cuda.is_available() and flags.gpu > -1) else "cpu"
+    flags.device = torch.device(device_str)
     print(flags)  # print the configuration
     # Construct model and all other necessary objects
     model, likelihood, mll, optimizer, train_ds, test_ds = construct_model(flags)
@@ -55,7 +56,7 @@ def main_loop(flags):
         print(f"Training on epoch {epoch}")
         start = time.time()
         step_counter = (epoch - 1) * len(train_loader)
-        with settings.use_toeplitz(not flags.use_cuda):
+        with settings.use_toeplitz(device_str == "cpu"):
             # settings.fast_computations(covar_root_decomposition=False),\
             # settings.lazily_evaluate_kernels(state=False),\
             # settings.tridiagonal_jitter(1e-2),\
@@ -85,7 +86,7 @@ def main_loop(flags):
         # print("Loading best model...")
         # utils.load_checkpoint(best_checkpoint, model, likelihood)
         print("Making predictions...")
-        pred_mean, pred_var = predict(model, likelihood, test_loader, flags.use_cuda)
+        pred_mean, pred_var = predict(model, likelihood, test_loader, flags.device)
         utils.save_predictions(pred_mean, pred_var, save_dir, flags)
         if flags.plot:
             getattr(plot, flags.plot)(pred_mean, pred_var, train_ds, test_ds)
@@ -97,8 +98,7 @@ def train(model, optimizer, dataset, mll, previous_steps, flags):
     model.train()
     mll.likelihood.train()
     for (step, (inputs, labels)) in enumerate(dataset, start=previous_steps + 1):
-        if flags.use_cuda:
-            inputs, labels = inputs.cuda(), labels.cuda()
+        inputs, labels = inputs.to(flags.device), labels.to(flags.device)
         # print(
         #     f" lengthscale:"
         #     f" {model.covar_module.base_kernel.log_lengthscale.detach().exp().cpu().numpy()}"
@@ -142,8 +142,7 @@ def evaluate(model, likelihood, dataset, mll, step_counter, flags):
 
     with torch.no_grad():
         for inputs, labels in dataset:
-            if flags.use_cuda:
-                inputs, labels = inputs.cuda(), labels.cuda()
+            inputs, labels = inputs.to(flags.device), labels.to(flags.device)
             output = model(inputs)
             loss = -mll(output, labels)
             loss_sum += loss.item() * inputs.size()[0]  # needed because of different batch sizes
@@ -157,7 +156,7 @@ def evaluate(model, likelihood, dataset, mll, step_counter, flags):
     return average_loss
 
 
-def predict(model, likelihood, dataset, use_cuda):
+def predict(model, likelihood, dataset, device):
     """Make predictions"""
     # Go into eval mode
     model.eval()
@@ -167,8 +166,7 @@ def predict(model, likelihood, dataset, use_cuda):
     pred_var = []
     with torch.no_grad():
         for inputs, _ in dataset:
-            if use_cuda:
-                inputs = inputs.cuda()
+            inputs = inputs.to(device)
             # Get classification predictions
             observed_pred = likelihood(model(inputs))
             # Get mean and variance

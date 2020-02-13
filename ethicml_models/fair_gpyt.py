@@ -454,7 +454,7 @@ def _flags(
             save_dir=save_dir,  # "/home/ubuntu/out2/",
             plot="",
             logging_steps=1,
-            gpus="0",
+            gpu=0,
             preds_path=PRED_FNAME,  # save the predictions into `predictions.npz`
             num_samples=20,
             optimize_inducing=True,

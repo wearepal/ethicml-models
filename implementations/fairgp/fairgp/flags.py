@@ -99,7 +99,10 @@ def parse_arguments(raw_args=None):
         help=f"How many steps between logging the loss {default}",
     )
     parser.add_argument(
-        "--gpus", default="0", help=f"Which GPUs to use (should normally only be one) {default}"
+        "--gpu",
+        default=0,
+        **int_type,
+        help=f"Which GPUs to use (should normally only be one) {default}"
     )
     parser.add_argument(
         "--preds_path",

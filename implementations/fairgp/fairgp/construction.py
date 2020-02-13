@@ -51,8 +51,7 @@ def construct_model(flags):
         )
         kernel = gpytorch.kernels.ScaleKernel(kernel_unscaled)
 
-    if flags.use_cuda:
-        inducing_inputs = inducing_inputs.cuda()
+    inducing_inputs = inducing_inputs.to(flags.device)
 
     # Initialize likelihood, kernel and model
     likelihood: gpytorch.likelihoods.Likelihood = Likelihood(flags)
@@ -69,8 +68,7 @@ def construct_model(flags):
         mean=mean,
         flags=flags,
     )
-    if flags.use_cuda:
-        model, likelihood = model.cuda(), likelihood.cuda()
+    model, likelihood = model.to(flags.device), likelihood.to(flags.device)
 
     # "Loss" for the GP model: the marginal log likelihood
     mll = model.get_marginal_log_likelihood(likelihood, len(train_ds))
