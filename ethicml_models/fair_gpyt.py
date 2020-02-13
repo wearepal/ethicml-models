@@ -131,12 +131,12 @@ class GPyTDemPar(GPyT):
             marginal: when doing average_prediction, should the prior of s be taken into account?
             precision_target: how similar should target labels and true labels be
         """
-        if self.s_as_input and average_prediction:
+        if s_as_input and average_prediction:
             name = f"{self.basename}_dem_par_av_True"
             if marginal:
                 name += "_marg"
         else:
-            name = f"{self.basename}_dem_par_in_{self.s_as_input}"
+            name = f"{self.basename}_dem_par_in_{s_as_input}"
         if target_acceptance is not None:
             name += f"_tar_{target_acceptance}"
         elif target_mode != self.MEAN:
