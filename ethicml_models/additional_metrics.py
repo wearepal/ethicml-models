@@ -1,6 +1,6 @@
-from ethicml.utility import DataTuple, Prediction
-from ethicml.metrics import Metric, TPR
-from ethicml.evaluators import metric_per_sensitive_attribute, ratio_per_sensitive_attribute
+from ethicml import DataTuple, Prediction
+from ethicml import Metric, TPR
+from ethicml import metric_per_sensitive_attribute, ratio_per_sensitive_attribute
 
 __all__ = ["TPRRatio"]
 

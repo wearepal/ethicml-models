@@ -7,9 +7,9 @@ from typing_extensions import Literal
 import numpy as np
 import pandas as pd
 
-from ethicml.common import implements
-from ethicml.utility import DataTuple, TestTuple, Prediction
-from ethicml.algorithms.inprocess import InAlgorithmAsync, InstalledModel
+from kit import implements
+from ethicml import DataTuple, TestTuple, Prediction
+from ethicml import InAlgorithmAsync, InstalledModel
 
 from .common import ROOT_PATH
 

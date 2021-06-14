@@ -1,4 +1,5 @@
 """Interface to the TuningLr algorithm."""
+from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Union, Optional, List, NamedTuple
@@ -6,10 +7,10 @@ from typing import Dict, Union, Optional, List, NamedTuple
 import numpy as np
 import pandas as pd
 
-from ethicml.algorithms.inprocess import InAlgorithmAsync
+from ethicml import InAlgorithmAsync
 from ethicml.algorithms.inprocess.shared import flag_interface
-from ethicml.utility import PathTuple, TestPathTuple, DataTuple, TestTuple, Prediction
-from ethicml.utility.data_structures import write_as_feather
+from ethicml import DataTuple, TestTuple, Prediction
+from ethicml.utility.data_structures import write_as_npz
 
 from .common import ROOT_PATH
 
@@ -119,7 +120,7 @@ class TuningLr(InAlgorithmAsync):
         """
         with TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
-            train_paths, test_paths = write_as_feather(train, test, tmp_path)
+            train_paths, test_paths = write_as_npz(train, test, tmp_path)
             pred_path = tmp_path / "predictions.npz"
             cmd = self._script_command(train_paths, test_paths, pred_path)
             await self._call_script(cmd)  # wait for scrip to run

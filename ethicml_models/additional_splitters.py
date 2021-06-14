@@ -1,9 +1,9 @@
 """Additional train-test splitters."""
 from typing import Tuple, Dict
 
-from ethicml.common import implements
-from ethicml.preprocessing import ProportionalSplit, DataSplitter
-from ethicml.utility import DataTuple
+from kit import implements
+from ethicml import ProportionalSplit, DataSplitter
+from ethicml import DataTuple
 
 __all__ = ["TrainTrainSplit"]
 
